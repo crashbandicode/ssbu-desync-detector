@@ -7,11 +7,11 @@
 //! heap allocations (expected 0) in the install and `session` lines.
 use crate::model::{
     self, describe, minimal_outer, pack_desync, pack_recording, pack_sync_end, recorder, xor_words,
-    FrameRecord, Line, RawEvent, Site, CFMK_BYTES, CFMK_PAYLOAD_LEN, CFMK_RECORDS, DESYNC,
-    EV_DESYNC, EV_LINK, EV_PEER_ABORT, EV_PLAYBACK_MISMATCH, EV_RECORDING, EV_SESSION, EV_SYNC_END,
-    FRAME_CHECK, KIND_ONLINE, KIND_PLAYBACK, OUTER_BYTES, PEER_ABORT, PLAYBACK_CHECK, RECORD_BYTES,
-    REPLAY_FRAME_INDEX, REPLAY_PLAYER, RNG_CHECK_WORD, RNG_MANAGER, RNG_STATE_STRIDE, SYNC_END,
-    TAG_CFMK, TAG_FRAM,
+    EndState, FrameRecord, Line, RawEvent, Site, CFMK_BYTES, CFMK_PAYLOAD_LEN, CFMK_RECORDS,
+    DESYNC, EV_DESYNC, EV_LINK, EV_PEER_ABORT, EV_PLAYBACK_MISMATCH, EV_RECORDING, EV_SESSION,
+    EV_SYNC_END, FRAME_CHECK, KIND_ONLINE, KIND_PLAYBACK, OUTER_BYTES, PEER_ABORT, PLAYBACK_CHECK,
+    RECORDING_NORMAL_END, RECORD_BYTES, REPLAY_FRAME_INDEX, REPLAY_PLAYER, RNG_CHECK_WORD,
+    RNG_MANAGER, RNG_STATE_STRIDE, SYNC_END, TAG_CFMK, TAG_FRAM,
 };
 use core::cell::UnsafeCell;
 use core::fmt::Write as _;
@@ -361,10 +361,27 @@ impl Drop for NxFile {
     }
 }
 
+/// Appends to `events.log`. A log that would pass `EVENTS_LOG_LIMIT` becomes
+/// `events.previous.log` (replacing the older one), so the two files never
+/// hold more than twice the limit.
 fn append_log(bytes: &[u8]) {
-    if let Some(mut log) = NxFile::append(&mut path(format_args!("{DATA_DIR}/events.log"))) {
-        log.write(bytes);
+    let mut log_path = path(format_args!("{DATA_DIR}/events.log"));
+    let Some(mut log) = NxFile::append(&mut log_path) else {
+        return;
+    };
+    if log.offset + bytes.len() as i64 > EVENTS_LOG_LIMIT {
+        drop(log);
+        let mut previous = path(format_args!("{DATA_DIR}/events.previous.log"));
+        delete(&mut previous);
+        if let (Some(from), Some(to)) = (log_path.with_nul(), previous.with_nul()) {
+            unsafe { nn::fs::RenameFile(from.as_ptr(), to.as_ptr()) };
+        }
+        let Some(fresh) = NxFile::create(&mut log_path) else {
+            return;
+        };
+        log = fresh;
     }
+    log.write(bytes);
 }
 
 fn delete(path: &mut Path) {
@@ -542,6 +559,8 @@ struct Pending {
     ended: u64,
     committed_seen: u64,
     staged_saved: bool,
+    /// How the session ended; a normal end does not keep its recording.
+    end: EndState,
 }
 
 /// The writer thread's files and rotation state. `events.log` is opened only
@@ -562,11 +581,8 @@ struct Writer {
 
 impl Writer {
     fn open() -> Option<Self> {
-        let mut log = NxFile::append(&mut path(format_args!("{DATA_DIR}/events.log")))?;
-        if log.offset > EVENTS_LOG_LIMIT {
-            log.truncate()?;
-        }
-        drop(log);
+        // The data folder must be writable (the install line created it).
+        NxFile::append(&mut path(format_args!("{DATA_DIR}/events.log")))?;
         let previous = match read_first_byte(&mut path(format_args!("{DATA_DIR}/next-slot.txt"))) {
             Some(digit) if digit.is_ascii_digit() => usize::from(digit - b'0') % SLOTS,
             _ => SLOTS - 1,
@@ -608,6 +624,7 @@ impl Writer {
                 ended: 0,
                 committed_seen: 0,
                 staged_saved: false,
+                end: EndState::default(),
             });
         }
         push_event(
@@ -687,9 +704,19 @@ impl Writer {
                 b: slot.b.load(Ordering::Relaxed),
             };
             self.event_tail += 1;
-            if event.code == EV_SYNC_END {
-                if let Some(pending) = self.pending.as_mut().filter(|p| p.ended == 0) {
-                    pending.ended = event.tick;
+            if let Some(pending) = self.pending.as_mut() {
+                match event.code {
+                    EV_SYNC_END => {
+                        pending
+                            .end
+                            .sync_end((event.a & 0xff) as u32, event.a >> 8 & 1 != 0);
+                        if pending.ended == 0 {
+                            pending.ended = event.tick;
+                        }
+                    }
+                    EV_DESYNC => pending.end.desync(),
+                    EV_PEER_ABORT => pending.end.peer_end(event.a >> 8 & 0xffff),
+                    _ => {}
                 }
             }
             line.clear();
@@ -750,6 +777,19 @@ impl Writer {
         let Some(mut pending) = self.pending.take() else {
             return;
         };
+        if !pending.end.keep_recording() {
+            let (a, b) = pack_recording(
+                pending.slot as u8,
+                pending.entry.unwrap_or(0) as u32,
+                0,
+                0,
+                false,
+                false,
+                RECORDING_NORMAL_END,
+            );
+            push_event(EV_RECORDING, a, b);
+            return;
+        }
         let now = tick();
         let result = unsafe { self.try_save(&mut pending, now, forced) };
         let keep = match result {
@@ -974,9 +1014,7 @@ fn report_install(report: &mut Line<256>) {
             unsafe { nn::fs::CreateDirectory(directory.as_ptr()) };
         }
     }
-    if let Some(mut log) = NxFile::append(&mut path(format_args!("{DATA_DIR}/events.log"))) {
-        log.write(report.as_bytes());
-    }
+    append_log(report.as_bytes());
 }
 
 #[skyline::main(name = "ssbu-desync-detector")]

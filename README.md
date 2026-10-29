@@ -15,13 +15,20 @@ Whichever console's value the vanilla run reproduces stayed vanilla.
 ## What it writes
 
 Everything goes to `sd:/ultimate/ssbu-desync-detector/`. Sessions rotate
-through eight slots (`next-slot.txt` holds the last one).
+through eight slots (`next-slot.txt` holds the last one); a new session
+empties its slot first.
 
 | File | Contents |
 |---|---|
-| `events.log` | The install line, then per session: `session`, `desync` (frame, this console's value, the other console's value, its station), `sync_end` (what ended the lockstep session), `peer_end` (the other console's end message), `link` (connection status changes), `recording` (the saved match), `playback_mismatch`. |
+| `events.log` | The install line, then per session: `session`, `desync` (frame, this console's value, the other console's value, its station), `sync_end` (what ended the lockstep session), `peer_end` (the other console's end message), `link` (connection status changes), `recording` (the saved match, or `not_kept reason=normal_end`), `playback_mismatch`. At 1 MiB it becomes `events.previous.log`. |
 | `frames-N.bin` | 20-byte records. Online: the frame number and this console's check value. Replay playback: the playback frame, the check value the game computed, and the recomputed and recorded position checksums. |
-| `match-N.bin` | The game's recording of that online match as a replay file. It is saved one second after the lockstep session ends and replaced by the finalised entry if the game finalises the match. |
+| `match-N.bin` | Only for a match that did not end normally (a desync, an abort, a silent opponent, an abnormal end message from the opponent, or no end seen): the game's recording of it as a replay file. It is saved one second after the lockstep session ends and replaced by the finalised entry if the game finalises the match. |
+
+Storage stays bounded: about 20 bytes per frame for each frames file and
+replay (a 5-minute match is about 350 KiB each, and a replay can never pass
+the game's 2 MB recording buffer), eight slots, and at most 2 MiB of log.
+Recordings are written by the plugin's own thread after the match, straight
+from the game's memory.
 
 ## Who desynced
 

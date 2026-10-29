@@ -377,8 +377,8 @@ pub const EV_PLAYBACK_MISMATCH: u8 = 5;
 pub const EV_SESSION: u8 = 6;
 pub const EV_RECORDING: u8 = 7;
 
-/// Why a match recording could not be saved (`EV_RECORDING` with no bytes).
-pub const RECORDING_REASONS: [&str; 8] = [
+/// Why a match recording was not saved (`EV_RECORDING` with no bytes).
+pub const RECORDING_REASONS: [&str; 9] = [
     "none",
     "no_recorder",
     "no_entry",
@@ -387,7 +387,54 @@ pub const RECORDING_REASONS: [&str; 8] = [
     "not_cfmk",
     "length_mismatch",
     "write_failed",
+    "normal_end",
 ];
+/// The recording was not kept because the match ended normally.
+pub const RECORDING_NORMAL_END: u8 = 8;
+
+/// Session end kind 1 is a normal match end at the results; kind 2 is an
+/// abort (desync, a silent peer, the session timeouts, the referee).
+pub const END_KIND_NORMAL: u32 = 1;
+/// The reason an opponent's end message carries on a normal end.
+pub const PEER_END_NORMAL_REASON: u64 = 1;
+
+/// How an online session ended, as far as a recording is concerned: only
+/// abnormal ends keep their recording (the referee needs it; a normal match
+/// does not).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct EndState {
+    pub normal_end_seen: bool,
+    pub abnormal: bool,
+}
+
+impl EndState {
+    /// A lockstep session end (`EV_SYNC_END`).
+    pub fn sync_end(&mut self, kind: u32, desync_seen: bool) {
+        if kind == END_KIND_NORMAL && !desync_seen {
+            self.normal_end_seen = true;
+        } else {
+            self.abnormal = true;
+        }
+    }
+
+    /// A mismatch row (`EV_DESYNC`).
+    pub fn desync(&mut self) {
+        self.abnormal = true;
+    }
+
+    /// The opponent's end message (`EV_PEER_ABORT`).
+    pub fn peer_end(&mut self, reason: u64) {
+        if reason != PEER_END_NORMAL_REASON {
+            self.abnormal = true;
+        }
+    }
+
+    /// Keep the recording unless a normal end was seen and nothing abnormal
+    /// was: a session that just stopped (no end seen) is kept too.
+    pub fn keep_recording(&self) -> bool {
+        self.abnormal || !self.normal_end_seen
+    }
+}
 
 /// One `events.log` line (without the newline) for a queued event.
 pub fn describe(event: &RawEvent, out: &mut impl fmt::Write) -> fmt::Result {
@@ -442,6 +489,14 @@ pub fn describe(event: &RawEvent, out: &mut impl fmt::Write) -> fmt::Result {
             if b & 0xff == u64::from(KIND_PLAYBACK) { "playback" } else { "online" },
             b >> 8
         ),
+        EV_RECORDING if a & 0xffff_ffff == 0 && b >> 32 == u64::from(RECORDING_NORMAL_END) => {
+            write!(
+                out,
+                "recording slot={} entry={} not_kept reason=normal_end",
+                a >> 48 & 0xff,
+                b & 0xffff_ffff
+            )
+        }
         EV_RECORDING if a & 0xffff_ffff == 0 => write!(
             out,
             "recording slot={} entry={} unavailable reason={}",
@@ -752,6 +807,48 @@ mod tests {
         assert_eq!(
             referee(&clean, &short, 200, ours(200), 1).verdict,
             Verdict::Inconclusive
+        );
+    }
+
+    #[test]
+    fn only_abnormal_ends_keep_the_recording() {
+        // The five 2026-10-29 console matches: kind 1, then the peer's reason 1.
+        let mut normal = EndState::default();
+        normal.sync_end(1, false);
+        normal.peer_end(1);
+        assert!(!normal.keep_recording());
+        // The Eden desync: mismatch rows, then a kind 2 end with desync_seen.
+        let mut desync = EndState::default();
+        desync.desync();
+        desync.sync_end(2, true);
+        assert!(desync.keep_recording());
+        // Kind 1 with the desync flag, an unknown kind, or an abnormal peer reason.
+        for (kind, flag, reason) in [(1, true, 1), (0, false, 1), (3, false, 1), (1, false, 7)] {
+            let mut end = EndState::default();
+            end.sync_end(kind, flag);
+            end.peer_end(reason);
+            assert!(
+                end.keep_recording(),
+                "kind={kind} flag={flag} reason={reason}"
+            );
+        }
+        // No end seen at all (the session just stopped): kept.
+        assert!(EndState::default().keep_recording());
+        let mut line = Line::<96>::new();
+        let (a, b) = pack_recording(2, 0, 0, 0, false, false, RECORDING_NORMAL_END);
+        describe(
+            &RawEvent {
+                tick: 4,
+                code: EV_RECORDING,
+                a,
+                b,
+            },
+            &mut line,
+        )
+        .unwrap();
+        assert_eq!(
+            core::str::from_utf8(line.as_bytes()).unwrap(),
+            "4 recording slot=2 entry=0 not_kept reason=normal_end"
         );
     }
 
