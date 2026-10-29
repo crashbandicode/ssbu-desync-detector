@@ -140,11 +140,12 @@ pub mod recorder {
     pub const DESCRIPTOR_STRIDE: usize = 0x18;
     pub const OUTER_MAP_ROOT: usize = 0x600028;
     pub const OVERFLOW: usize = 0x600038;
-    /// Outer-header map node: key at `+0x20`, object at `+0x28`, header at
-    /// object `+0x18`.
+    /// Outer-header map node: key at `+0x20`, the shared_ptr's object (the
+    /// 0x3b0-byte header itself) at `+0x28`. Reading it at object `+0x18`
+    /// put "Smash" at file `+0x02` instead of `+0x1a` (Eden, 2026-10-29).
     pub const NODE_KEY: usize = 0x20;
     pub const NODE_OBJECT: usize = 0x28;
-    pub const OBJECT_OUTER: usize = 0x18;
+    pub const OBJECT_OUTER: usize = 0;
     pub const STAGING_BYTES: usize = 0x200000;
 }
 
@@ -578,9 +579,10 @@ pub fn referee(
             first_position_mismatch,
         };
     }
+    // Frames after the desync are the forced end, not evidence.
     let first_divergence = console
         .iter()
-        .filter(|r| r.kind() == KIND_ONLINE)
+        .filter(|r| r.kind() == KIND_ONLINE && r.frame <= frame)
         .find(|r| vanilla_rng(i64::from(r.frame) + offset).is_some_and(|v| v != r.rng))
         .map(|r| r.frame);
     let vanilla_at_desync = vanilla_rng(i64::from(frame) + offset);

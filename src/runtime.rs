@@ -110,6 +110,8 @@ static WRITER_THREAD: ThreadObject = ThreadObject(UnsafeCell::new([0; 0x1c0]));
 extern "C" {
     #[link_name = "\u{1}_ZN2nn4nifm27GetInternetConnectionStatusEPNS0_24InternetConnectionStatusE"]
     fn GetInternetConnectionStatus(out: *mut u8) -> u32;
+    #[link_name = "\u{1}_ZN2nn2os17SetThreadCoreMaskEPNS0_10ThreadTypeEim"]
+    fn SetThreadCoreMask(thread: *mut nn::os::ThreadType, ideal_core: i32, mask: u64);
 }
 
 fn tick() -> u64 {
@@ -905,21 +907,32 @@ extern "C" fn writer_main(_: *mut skyline::libc::c_void) {
     }
 }
 
+/// The writer takes the loading thread's priority and may run on any core
+/// the game may use. Pinned to the main thread's core at equal priority it
+/// starved in menus (Horizon does not time-slice equal priorities), so its
+/// lines reached the card minutes late.
 fn start_writer() -> bool {
     unsafe {
         let thread = WRITER_THREAD.0.get().cast::<nn::os::ThreadType>();
         let priority = nn::os::GetThreadPriority(nn::os::GetCurrentThread());
-        let created = nn::os::CreateThread(
+        let cores = nn::os::GetThreadAvailableCoreMask();
+        if cores == 0 {
+            return false;
+        }
+        let ideal = 63 - cores.leading_zeros() as i32;
+        let created = nn::os::CreateThread1(
             thread,
             writer_main,
             core::ptr::null_mut(),
             WRITER_STACK_MEMORY.0.get().cast::<u8>(),
             WRITER_STACK,
             priority,
+            ideal,
         );
         if created != 0 {
             return false;
         }
+        SetThreadCoreMask(thread, ideal, cores);
         nn::os::SetThreadNamePointer(thread, c"desync-detector".as_ptr().cast());
         nn::os::StartThread(thread);
         true
