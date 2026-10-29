@@ -34,6 +34,50 @@ the effect library's emitter RNG `.4f49cb4`, libc `rand()`, and per-object
 streams such as a stage's local xorshift. They matter only if their results
 reach game logic that draws a checked stream.
 
+## What one match draws
+
+An Eden-only diagnostic build (not released) hooked all 632 draw instructions
+and logged every draw during a 12,977-frame Final Destination replay between
+two CPUs. Verified:
+
+| Stream | Draws | Seen by a hook | Sites that fired |
+|---|---:|---:|---:|
+| other | 14 | 14 | 5 of 27 |
+| fighter | 13,101 | 13,101 | 14 of 142 |
+| weapon | 2 | 2 | 2 of 61 |
+| stage | 0 | 0 | 0 of 21 |
+| ai | 111,481 | 111,479 | 33 of 248 |
+| enemy | 0 | 0 | 0 of 51 |
+| item | 18 | 18 | 3 of 69 |
+| sound | 198 | 198 | 1 of 8 |
+| camera | 0 | 0 | 0 of 5 |
+
+## Damage trace
+
+The same replay with 30 % added to the first fighter at frame 600 (the build's
+damage read-back logged 0, so the amount is unconfirmed; the positions show it
+took effect). Verified:
+
+| Frame | First difference |
+|---|---|
+| 1571 | positions: the next hit's knockback |
+| 1577 | the check: `sound` drawn 24 times instead of 25. The missing draw (`.23f623c`) is the launch voice in `.6e6260`: above the common param `damage_fly_se_threshold_voice` it picks one of two voices with a random variant, then waits 274 frames before the next. |
+| 1606, 1651, 1814, 2013 | `ai`, `fighter`, `other`, `item` |
+
+Weapon, stage, enemy and camera never differed.
+
+## Not understood yet
+
+- Most draw sites never ran: no stage hazards, few items and projectiles, no
+  enemies. Two CPUs make `ai` dominate; a match between two people should
+  draw it rarely, if at all (inferred).
+- The busiest sites are in unexported functions and are not identified: 78 %
+  of `fighter` draws come from `.4a9a00` (about one per frame), most `ai`
+  draws from `.34eb4c`, `.34eb84` and `.2db4c8`.
+- Two `ai` draws came from code outside the 632 hooked instructions.
+- Of the unchecked RNGs, only Town and City's path into a checked stream has
+  been traced.
+
 ## Rules for plugins
 
 A No contest needs the two simulations to differ and the difference to change
@@ -66,7 +110,8 @@ the clock, files, frame pacing, menus, effect handles or the unchecked RNGs).
   hit/hurtboxes, shields, timers, status, stage or item state, inputs after
   unpacking. Nothing of this is compared, but from that moment the consoles
   play different matches and the next draw that depends on it ends the match
-  (a KO within a frame, +30 % damage after 67 s in Eden).
+  (a KO within a frame; +30 % damage after 67 s in an Eden online test, and
+  in the damage trace above 6 frames after the next hit).
 - Changes to an unchecked source that game logic consumes. Verified case:
   nulling Town and City's bubble effect changes its lifetime, which feeds the
   stage's local RNG, whose actors then make one fewer `stage` draw (61 s into
