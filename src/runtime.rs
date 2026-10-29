@@ -996,8 +996,12 @@ pub fn main() {
         skyline::install_hook!(desync_detector_playback_check);
         let _ = write!(report, "{}playback", if lockstep { "," } else { "" });
     }
-    if !start_writer() {
-        let _ = write!(report, " writer=not_started");
-    }
+    // The writer appends to the same log, so it starts only after this line
+    // (and the folder) exist.
     report_install(&mut report);
+    if !start_writer() {
+        report.clear();
+        let _ = write!(report, "{} writer=not_started", tick());
+        report_install(&mut report);
+    }
 }
