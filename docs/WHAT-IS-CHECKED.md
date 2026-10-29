@@ -34,27 +34,54 @@ the effect library's emitter RNG `.4f49cb4`, libc `rand()`, and per-object
 streams such as a stage's local xorshift. They matter only if their results
 reach game logic that draws a checked stream.
 
-## What one match draws
+## What matches draw
 
-An Eden-only diagnostic build (not released) hooked all 632 draw instructions
-and logged every draw during a 12,977-frame Final Destination replay between
-two CPUs. Verified:
+An Eden-only diagnostic build (not released) hooked 632 draw instructions and
+logged every draw while replaying matches. Five online 1v1s the operator
+played on a Switch with this plugin were replayed in Eden: Eden's check value
+equals the one the Switch saw online on every frame (73,761 frames), so an
+Eden replay reproduces the online simulation exactly. Verified:
 
-| Stream | Draws | Seen by a hook | Sites that fired |
+| Stream | 5 online 1v1s | 2 CPUs, Final Destination | CPU, all items High, Mario Bros. |
 |---|---:|---:|---:|
-| other | 14 | 14 | 5 of 27 |
-| fighter | 13,101 | 13,101 | 14 of 142 |
-| weapon | 2 | 2 | 2 of 61 |
-| stage | 0 | 0 | 0 of 21 |
-| ai | 111,481 | 111,479 | 33 of 248 |
-| enemy | 0 | 0 | 0 of 51 |
-| item | 18 | 18 | 3 of 69 |
-| sound | 198 | 198 | 1 of 8 |
-| camera | 0 | 0 | 0 of 5 |
+| other | 148 | 14 | 110 |
+| fighter | 31,150 | 13,101 | 2,321 |
+| weapon | 2,293 | 2 | 0 |
+| stage | 69 | 0 | 0 |
+| ai | 0 | 111,481 | 63,220 |
+| enemy | 0 | 0 | 0 |
+| item | 3,498 | 18 | 804 |
+| sound | 1,067 | 198 | 76 |
+| camera | 0 | 0 | 0 |
+
+Where they come from:
+
+- `fighter`: mostly one routine (`.4a9560`) that rolls an interval, an amount
+  and a 2D offset, up to about once a frame depending on the fighters; also
+  the damage reaction roll and fighter scripts calling `sv_math::rand`.
+- `sound`: the weighted variant pick `.23f60b0` behind `PLAY_SEQUENCE`
+  scripts and the launch voice.
+- `other`: script `IS_RANDOM`, the wait-motion pick, the star-KO camera offset.
+- `weapon`, `item`: online, almost all (all but 4 weapon draws) in the two
+  Banjo & Kazooie matches, from script modules calling `sv_math::randf` and
+  `app::random::get_float` (inferred to be Banjo's articles: the two matches
+  share Banjo, not the stage). With items on, item generators and
+  `app::random::*`.
+- `stage`: Town and City's guest shuffle.
+- `ai`: CPUs only (per-CPU picks every frame, reaction timers,
+  `ai_random::*`). Nothing draws it between two people.
+- `enemy` (boss and enemy code) and `camera` (one scene-setup camera mode)
+  never drew.
+
+The build saw every online draw. In the CPU matches it missed a few (2 of
+111,481 `ai` on Final Destination; 338 `ai`, 9 `item` and 3 `fighter` in the
+item match), where code reuses a register holding the RNG page instead of
+reloading it, plus 7 `ai` draws inside a script module.
 
 ## Damage trace
 
-The same replay with 30 % added to the first fighter at frame 600 (the build's
+The Final Destination CPU replay with 30 % added to the first fighter at
+frame 600 (the build's
 damage read-back logged 0, so the amount is unconfirmed; the positions show it
 took effect). Verified:
 
@@ -68,13 +95,13 @@ Weapon, stage, enemy and camera never differed.
 
 ## Not understood yet
 
-- Most draw sites never ran: no stage hazards, few items and projectiles, no
-  enemies. Two CPUs make `ai` dominate; a match between two people should
-  draw it rarely, if at all (inferred).
-- The busiest sites are in unexported functions and are not identified: 78 %
-  of `fighter` draws come from `.4a9a00` (about one per frame), most `ai`
-  draws from `.34eb4c`, `.34eb84` and `.2db4c8`.
-- Two `ai` draws came from code outside the 632 hooked instructions.
+- Which visible behaviour the main `fighter` routine `.4a9560` drives, and
+  why it runs every frame for some fighters and rarely for others.
+- `enemy` and `camera` never drew, and `stage` only on Town and City; the
+  other stage, enemy and camera code is mapped statically only (for example
+  Tortimer Island, Mementos, PictoChat 2, bosses).
+- Draws made inside fighter and item script modules are seen only when they
+  call an exported RNG function; which scripts make them is not named.
 - Of the unchecked RNGs, only Town and City's path into a checked stream has
   been traced.
 
