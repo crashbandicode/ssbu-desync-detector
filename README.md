@@ -57,6 +57,13 @@ the clean instance named the probed console. Details are in
 [docs/EDEN-PROOF.md](docs/EDEN-PROOF.md); `tests/eden_probe.rs` replays
 those frames as a regression test. It has not run on a Switch yet.
 
+## What the check covers
+
+[docs/WHAT-IS-CHECKED.md](docs/WHAT-IS-CHECKED.md) explains what the online
+check compares, which plugin changes can and cannot cause a No contest, and
+how to test a plugin by playing the same replay with and without it
+(`cargo run --example compare`).
+
 ## Safe online
 
 The hooks only read registers and memory the game is already reading at that
