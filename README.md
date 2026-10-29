@@ -1,109 +1,73 @@
 # ssbu-desync-detector
 
+> **Disclaimer:** this project was developed with the assistance of AI
+> (Claude, Codex and other coding agents) under the operator's direction and
+> review. Nothing is claimed beyond the dated tests cited below.
+
 Skyline plugin for Super Smash Bros. Ultimate 13.0.5 that records what ended
-an online match and keeps the per-frame evidence a vanilla replay needs to
-show which console desynced.
+an online match and keeps the evidence a vanilla replay needs to show which
+console desynced. Read-only: safe to leave on online.
 
-Online matches run in lockstep. Every frame each console sends a check value
-(the XOR of the game's RNG states) and compares the other console's value
-with its own; a mismatch ends the match as "No contest". Both consoles see
-the same two values, so the values alone cannot say whose simulation left
-vanilla. A replay can: the game records every online match, and an unmodded
-game playing that recording recomputes the check value for every frame.
-Whichever console's value the vanilla run reproduces stayed vanilla.
+![Referee](docs/media/referee.gif)
 
-## What it writes
+*An unmodded game plays back the recording of a console that left vanilla and
+refuses to go on past the desync (Eden, 2026-10-29).*
 
-Everything goes to `sd:/ultimate/ssbu-desync-detector/`. Sessions rotate
-through eight slots (`next-slot.txt` holds the last one); a new session
-empties its slot first.
+## How it works
 
-| File | Contents |
-|---|---|
-| `events.log` | The install line, then per session: `session`, `desync` (frame, this console's value, the other console's value, its station), `sync_end` (what ended the lockstep session), `peer_end` (the other console's end message), `link` (connection status changes), `recording` (the saved match, or `not_kept reason=normal_end`), `playback_mismatch`. At 1 MiB it becomes `events.previous.log`. |
-| `frames-N.bin` | 20-byte records. Online: the frame number and this console's check value. Replay playback: the playback frame, the check value the game computed, and the recomputed and recorded position checksums. |
-| `match-N.bin` | Only for a match that did not end normally (a desync, an abort, a silent opponent, an abnormal end message from the opponent, or no end seen): the game's recording of it as a replay file. It is saved one second after the lockstep session ends and replaced by the finalised entry if the game finalises the match. |
+**1. Play online.** Each frame both consoles compare one check value. On a "No
+contest" the log shows the frame and both values, and the match's recording is
+saved as `match-N.bin`:
 
-Storage stays bounded: about 20 bytes per frame for each frames file and
-replay (a 5-minute match is about 350 KiB each, and a replay can never pass
-the game's 2 MB recording buffer), eight slots, and at most 2 MiB of log.
-Recordings are written by the plugin's own thread after the match, straight
-from the game's memory.
+```text
+desync frame=1128 ours=0x720d5ecb theirs=0x4aec250b peer=1
+sync_end trigger=desync kind=2 frame=1132 local=0 desync_seen=1
+recording slot=0 entry=0 bytes=23088 records=1170 source=committed outer=game
+```
 
-## Who desynced
+The values alone can't say who left vanilla: both consoles log the same pair.
 
-1. Copy the folder off the console that saw the No contest.
-2. In an unmodded game (Eden with only this plugin works), copy
-   `match-N.bin` to `save_data/replay/replayYYYYMMDDhhmmss.bin`, open the
-   Vault's replays and play it. The plugin records the playback in a new
-   slot. (If the Vault lists the match without names, run
-   `cargo run --example replay -- outer match-N.bin <a saved replay> out.bin`
-   and copy `out.bin` instead.)
-3. Copy that game's folder too and run
+**2. Replay it unmodded.** Copy `match-N.bin` to
+`save_data/replay/replayYYYYMMDDhhmmss.bin` in a game with only this plugin
+(Eden works) and play it from the Vault. If this console left vanilla, the
+game stops where it can no longer reproduce it (above).
 
-   ```text
-   cargo run --example referee -- <console-dir> N <vanilla-dir> M
-   ```
+**3. Ask the referee.** With both detector folders:
 
-The referee lines the console's frames up with the playback, then looks up
-the vanilla value at the desync frame:
+```text
+cargo run --example referee -- <console-dir> 0 <vanilla-dir> 1
+desync:   frame 1128, from station 1
+          this console  0x720d5ecb
+          other console 0x4aec250b
+vanilla:  at the desync frame 0x4aec250b = the other console's value
+verdict:  this console left vanilla
+```
 
-| Verdict | Meaning |
-|---|---|
-| the other console left vanilla | the vanilla value equals this console's value |
-| this console left vanilla | the vanilla value equals the other console's value, or the game stopped the playback earlier because it could not reproduce this console's recorded positions |
-| both consoles left vanilla | the vanilla value equals neither |
-| inconclusive | the playback did not line up, or ended before the desync without disagreeing |
+Whichever value the vanilla game reproduces belongs to the console that
+stayed vanilla.
 
-## Tested
+## Install
 
-In Eden on 2026-10-29: two instances in Quickplay, one running only this
-plugin and one with an Eden-only probe that forced a desync. Both consoles
-logged the same frame with mirrored values, and playing each recording on
-the clean instance named the probed console. Details are in
-[docs/EDEN-PROOF.md](docs/EDEN-PROOF.md); `tests/eden_probe.rs` replays
-those frames as a regression test. It has not run on a Switch yet.
+Copy `libssbu_desync_detector.nro` to
+`sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/`. Output goes
+to `sd:/ultimate/ssbu-desync-detector/`. Recordings are kept only for matches
+that did not end normally, and the log is capped, so it stays small.
 
-## What the check covers
+## More
 
-[docs/WHAT-IS-CHECKED.md](docs/WHAT-IS-CHECKED.md) explains what the online
-check compares, which plugin changes can and cannot cause a No contest, and
-how to test a plugin by playing the same replay with and without it
-(`cargo run --example compare`).
-
-## Safe online
-
-The hooks only read registers and memory the game is already reading at that
-instruction. The plugin writes no game memory, changes no game state and
-sends nothing. Each hook site is checked against its 13.0.5 instruction bytes
-first; the plugin installs nothing on other versions.
-
-## Memory
-
-The plugin does not allocate. Frame and event rings are static, lines and
-paths are built in fixed stack buffers, files go through `nn::fs`, and the
-writer thread runs on a static 32 KiB stack. A counting allocator reports
-the plugin's heap allocations in the install line and every `session` line
-(`heap_allocations=0`).
-
-## Hook sites (13.0.5 `.text`)
-
-| Offset | What it reads |
-|---|---|
-| `0x16d6cdc` | this frame's check value and frame number |
-| `0x16cf304` | a mismatch: both values, the station and the frame |
-| `0x16ce7c0` | the lockstep session end and its caller |
-| `0x16cc2c4` | the other console's end message |
-| `0x135fd60` | a replay playback frame and its position check |
+- [docs/EDEN-PROOF.md](docs/EDEN-PROOF.md): the forced-desync test in Eden.
+  It has not run through a real desync on a Switch yet.
+- [docs/WHAT-IS-CHECKED.md](docs/WHAT-IS-CHECKED.md): what the online check
+  compares, and how to test a plugin for desyncs (`cargo run --example compare`).
+- [docs/HOOKS.md](docs/HOOKS.md): hook sites, files and verdicts.
 
 ## Build
 
 ```text
 cargo test
-cargo clippy --all-targets -- -D warnings
-cargo build --no-default-features
 cargo skyline build --release
 ```
 
-Install `target/aarch64-skyline-switch/release/libssbu_desync_detector.nro`
-to `atmosphere/contents/01006A800016E000/romfs/skyline/plugins/`.
+## License
+
+MIT
