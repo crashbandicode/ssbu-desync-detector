@@ -48,6 +48,15 @@ the vanilla value at the desync frame:
 | both consoles left vanilla | the vanilla value equals neither |
 | inconclusive | the playback did not line up, or ended before the desync without disagreeing |
 
+## Tested
+
+In Eden on 2026-10-29: two instances in Quickplay, one running only this
+plugin and one with an Eden-only probe that forced a desync. Both consoles
+logged the same frame with mirrored values, and playing each recording on
+the clean instance named the probed console. Details are in
+[docs/EDEN-PROOF.md](docs/EDEN-PROOF.md); `tests/eden_probe.rs` replays
+those frames as a regression test. It has not run on a Switch yet.
+
 ## Safe online
 
 The hooks only read registers and memory the game is already reading at that
