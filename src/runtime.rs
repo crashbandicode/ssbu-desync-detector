@@ -110,8 +110,6 @@ static WRITER_THREAD: ThreadObject = ThreadObject(UnsafeCell::new([0; 0x1c0]));
 extern "C" {
     #[link_name = "\u{1}_ZN2nn4nifm27GetInternetConnectionStatusEPNS0_24InternetConnectionStatusE"]
     fn GetInternetConnectionStatus(out: *mut u8) -> u32;
-    #[link_name = "\u{1}_ZN2nn2os17SetThreadCoreMaskEPNS0_10ThreadTypeEim"]
-    fn SetThreadCoreMask(thread: *mut nn::os::ThreadType, ideal_core: i32, mask: u64);
 }
 
 fn tick() -> u64 {
@@ -363,6 +361,12 @@ impl Drop for NxFile {
     }
 }
 
+fn append_log(bytes: &[u8]) {
+    if let Some(mut log) = NxFile::append(&mut path(format_args!("{DATA_DIR}/events.log"))) {
+        log.write(bytes);
+    }
+}
+
 fn delete(path: &mut Path) {
     if let Some(path) = path.with_nul() {
         unsafe { nn::fs::DeleteFile(path.as_ptr()) };
@@ -540,9 +544,11 @@ struct Pending {
     staged_saved: bool,
 }
 
-/// The writer thread's files and rotation state.
+/// The writer thread's files and rotation state. `events.log` is opened only
+/// to append each batch of lines: a closed file is on the card at once, while
+/// Eden keeps an open file's writes until the host file is closed (its
+/// `FlushFile` does not reach the host).
 struct Writer {
-    log: NxFile,
     frames: Option<NxFile>,
     slot: usize,
     in_session: bool,
@@ -560,12 +566,12 @@ impl Writer {
         if log.offset > EVENTS_LOG_LIMIT {
             log.truncate()?;
         }
+        drop(log);
         let previous = match read_first_byte(&mut path(format_args!("{DATA_DIR}/next-slot.txt"))) {
             Some(digit) if digit.is_ascii_digit() => usize::from(digit - b'0') % SLOTS,
             _ => SLOTS - 1,
         };
         Some(Self {
-            log,
             frames: None,
             slot: previous,
             in_session: false,
@@ -667,6 +673,8 @@ impl Writer {
             self.event_tail = head - EVENT_RING as u64;
         }
         let mut line = Line::<192>::new();
+        let mut batch = [0u8; 2048];
+        let mut used = 0;
         while self.event_tail < head {
             let slot = &EVENTS[(self.event_tail % EVENT_RING as u64) as usize];
             if slot.seq.load(Ordering::Acquire) != self.event_tail + 1 {
@@ -687,7 +695,16 @@ impl Writer {
             line.clear();
             let _ = describe(&event, &mut line);
             let _ = line.write_char('\n');
-            self.log.write(line.as_bytes());
+            let text = line.as_bytes();
+            if used + text.len() > batch.len() {
+                append_log(&batch[..used]);
+                used = 0;
+            }
+            batch[used..used + text.len()].copy_from_slice(text);
+            used += text.len();
+        }
+        if used > 0 {
+            append_log(&batch[..used]);
         }
     }
 
@@ -891,7 +908,6 @@ impl Writer {
             self.poll_pending();
             self.drain_events();
             if iteration.is_multiple_of(10) {
-                self.log.flush();
                 if let Some(frames) = self.frames.as_ref() {
                     frames.flush();
                 }
@@ -907,32 +923,21 @@ extern "C" fn writer_main(_: *mut skyline::libc::c_void) {
     }
 }
 
-/// The writer takes the loading thread's priority and may run on any core
-/// the game may use. Pinned to the main thread's core at equal priority it
-/// starved in menus (Horizon does not time-slice equal priorities), so its
-/// lines reached the card minutes late.
 fn start_writer() -> bool {
     unsafe {
         let thread = WRITER_THREAD.0.get().cast::<nn::os::ThreadType>();
         let priority = nn::os::GetThreadPriority(nn::os::GetCurrentThread());
-        let cores = nn::os::GetThreadAvailableCoreMask();
-        if cores == 0 {
-            return false;
-        }
-        let ideal = 63 - cores.leading_zeros() as i32;
-        let created = nn::os::CreateThread1(
+        let created = nn::os::CreateThread(
             thread,
             writer_main,
             core::ptr::null_mut(),
             WRITER_STACK_MEMORY.0.get().cast::<u8>(),
             WRITER_STACK,
             priority,
-            ideal,
         );
         if created != 0 {
             return false;
         }
-        SetThreadCoreMask(thread, ideal, cores);
         nn::os::SetThreadNamePointer(thread, c"desync-detector".as_ptr().cast());
         nn::os::StartThread(thread);
         true
