@@ -8,7 +8,11 @@
 //! match (`events.log`, `frames-N.bin`); `<vanilla-dir>` is the folder from an
 //! unmodded game that played that console's `match-N.bin` from the Vault. The
 //! desync values come from the console's `events.log` unless given.
-use ssbu_desync_detector::model::{referee, FrameRecord, Verdict, KIND_ONLINE, KIND_PLAYBACK};
+#[path = "../src/model.rs"]
+#[allow(dead_code)]
+mod model;
+
+use model::{referee, FrameRecord, Verdict, KIND_ONLINE, KIND_PLAYBACK};
 use std::path::Path;
 use std::process::ExitCode;
 

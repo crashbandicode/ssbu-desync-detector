@@ -5,7 +5,11 @@
 //! played from the Vault on a. The files are the plugin's `frames-N.bin`:
 //! `*-online.bin` from each console's match, `*-vanilla.bin` from the
 //! playback of that console's recording.
-use ssbu_desync_detector::model::{
+#[path = "../src/model.rs"]
+#[allow(dead_code)]
+mod model;
+
+use model::{
     referee, FrameRecord, RefereeReport, Verdict, KIND_ONLINE, KIND_PLAYBACK,
 };
 

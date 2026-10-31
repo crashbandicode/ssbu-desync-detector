@@ -9,7 +9,11 @@
 //! header with the one from a replay the game saved (the Vault shows names
 //! and stages from it), keeping the match's time. Copy the result to
 //! `save_data/replay/replayYYYYMMDDhhmmss.bin` and reopen the Vault.
-use ssbu_desync_detector::model::{validate_entry, CFMK_BYTES, CFMK_RECORDS, OUTER_BYTES};
+#[path = "../src/model.rs"]
+#[allow(dead_code)]
+mod model;
+
+use model::{validate_entry, CFMK_BYTES, CFMK_RECORDS, OUTER_BYTES};
 use std::process::ExitCode;
 
 fn read(path: &str) -> Result<Vec<u8>, String> {

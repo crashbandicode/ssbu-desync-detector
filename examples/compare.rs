@@ -7,7 +7,11 @@
 //! Prints the first frame whose check value differs and the first frame whose
 //! recomputed position checksum differs, and whether either run stopped
 //! because its positions no longer matched the recording.
-use ssbu_desync_detector::model::{FrameRecord, KIND_PLAYBACK};
+#[path = "../src/model.rs"]
+#[allow(dead_code)]
+mod model;
+
+use model::{FrameRecord, KIND_PLAYBACK};
 use std::collections::BTreeMap;
 use std::process::ExitCode;
 
