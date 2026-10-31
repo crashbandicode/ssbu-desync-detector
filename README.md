@@ -53,6 +53,13 @@ Copy `libssbu_desync_detector.nro` to
 to `sd:/ultimate/ssbu-desync-detector/`. Recordings are kept only for matches
 that did not end normally, and the log is capped, so it stays small.
 
+[0.2.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.2.0)
+(2026-10-31) is 0.1.0's code built with link-time optimization: 124 KiB of
+memory instead of 552 KiB. It loaded and hooked in Eden next to the other
+plugins on the operator's card (an offline match, so no session to record),
+and has been on that Switch since 2026-10-31, installed over DBI and read
+back.
+
 ## More
 
 - [docs/EDEN-PROOF.md](docs/EDEN-PROOF.md): the forced-desync test in Eden.
