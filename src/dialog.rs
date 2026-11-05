@@ -1,23 +1,29 @@
 //! Append evidence to the game's formatted communication-error text.
 //!
-//! The native caller owns a zeroed 0x1000-byte UTF-16 stack buffer. Just
-//! before its formatter returns, w20 contains the UTF-16 count. The saved
-//! return address identifies this caller and the guarded frame identifies
-//! its output buffer, without relying on the trampoline-clobbered x17.
-//! Editing that buffer avoids replacing an applet, guessing an error code,
-//! retaining a pointer or sharing scratch storage between calls/threads.
+//! The game sets a label's text in two ways. With arguments, `.37a2660`
+//! formats into a zeroed 0x1000-byte UTF-16 stack buffer through `.37ab750`;
+//! without, `.377a120` does the same through `.37ae170`. Either way the
+//! finished text and its count sit in the caller's buffer before the pane
+//! setter `.37a2270` copies them. A [`Route`] describes one such point: the
+//! hooked instruction, the register with the count, the guarded frame that
+//! locates the buffer and, for a hook inside a shared callee, the saved
+//! return address of the one accepted caller. [`append_in_frame`] is the hook
+//! itself minus register access, the same for every route. Editing that
+//! buffer avoids replacing an applet, guessing an error code, retaining a
+//! pointer or sharing scratch storage between calls/threads.
 use crate::disconnect::Reason;
 use crate::model::Site;
 
 pub const CAPACITY: usize = 0x800;
-pub const FORMAT_RETURN_OFFSET: usize = 0x37ad8e8;
-pub const CALLER_RETURN_OFFSET: u64 = 0x37a272c;
-pub const FRAME_BYTES: u64 = 528;
-pub const SAVED_LR_OFFSET: u64 = 520;
+/// Formatter `.37ab750` epilogue (`mov w0, w20`), for caller `.37a2660`.
+pub const ARGS_HOOK: usize = 0x37ad8e8;
+/// `.377a120` after its formatter returned (`mov w2, w0`), before the setter.
+pub const PLAIN_HOOK: usize = 0x377a250;
 const PREFIX: &str = "\n\nReason: ";
 
-// All bytes generated from the hash-verified 13.0.5 NSO. Only FORMAT_RETURN is
-// hooked. The other guards cover the native stack, capacity and count ABI.
+// The argument route. All bytes generated from the hash-verified 13.0.5 NSO.
+// Only FORMAT_RETURN is hooked. The other guards cover the native stack,
+// capacity and count ABI.
 pub const TEXT_STACK: Site = Site {
     name: "text_stack",
     offset: 0x37a2660,
@@ -42,7 +48,7 @@ pub const TEXT_FORMAT: Site = Site {
 };
 pub const TEXT_READY: Site = Site {
     name: "text_ready",
-    offset: CALLER_RETURN_OFFSET as usize,
+    offset: 0x37a272c,
     guard: [
         0xe2, 0x03, 0x00, 0x2a, 0xe1, 0x03, 0x00, 0x91, 0xe0, 0x03, 0x13, 0xaa, 0xe3, 0x03, 0x1f,
         0x2a, 0xcd, 0xfe, 0xff, 0x97, 0xff, 0x07, 0x40, 0x91, 0xff, 0x03, 0x02, 0x91, 0xfd, 0x7b,
@@ -64,7 +70,7 @@ pub const FORMAT_TERMINATOR: Site = Site {
 };
 pub const FORMAT_RETURN: Site = Site {
     name: "format_return",
-    offset: FORMAT_RETURN_OFFSET,
+    offset: ARGS_HOOK,
     guard: [
         0xe0, 0x03, 0x14, 0x2a, 0xff, 0xc3, 0x06, 0x91, 0xfd, 0x7b, 0x45, 0xa9, 0xf4, 0x4f, 0x44,
         0xa9, 0xf6, 0x57, 0x43, 0xa9, 0xf8, 0x5f, 0x42, 0xa9, 0xfa, 0x67, 0x41, 0xa9, 0xfc, 0x6f,
@@ -84,25 +90,175 @@ pub const FORMAT_STACK: Site = Site {
         0xe9, 0x07, 0x00, 0x32,
     ],
 };
-pub const GUARDS: [&Site; 6] = [
-    &TEXT_STACK,
-    &TEXT_FORMAT,
-    &TEXT_READY,
-    &FORMAT_TERMINATOR,
-    &FORMAT_RETURN,
-    &FORMAT_STACK,
-];
 
-/// Guarded formatter frame: 96 bytes of register saves, then 432 locals.
-/// Returns the caller buffer and saved-LR slot, before any pointer is read.
-pub fn frame_addresses(sp: u64, fp: u64) -> Option<(u64, u64)> {
-    if sp < 0x10000 || !sp.is_multiple_of(16) || fp != sp.checked_add(512)? {
+// The no-argument route, from the same hash-verified 13.0.5 NSO
+// (popup-route/route-guards.log in the work folder). PLAIN_READY is hooked.
+/// `.377a120` prologue: 0x40 bytes of saves, then a 0x1120-byte frame.
+pub const PLAIN_STACK: Site = Site {
+    name: "plain_stack",
+    offset: 0x377a120,
+    guard: [
+        0xfc, 0x0f, 0x1c, 0xf8, 0xf6, 0x57, 0x01, 0xa9, 0xf4, 0x4f, 0x02, 0xa9, 0xfd, 0x7b, 0x03,
+        0xa9, 0xfd, 0xc3, 0x00, 0x91, 0xff, 0x07, 0x40, 0xd1, 0xff, 0x83, 0x04, 0xd1, 0xe6, 0x1f,
+        0x03, 0xad, 0xe6, 0x9f, 0x0a, 0xa9, 0xe4, 0x97, 0x09, 0xa9, 0xe2, 0x8f, 0x08, 0xa9, 0xe4,
+        0x17, 0x02, 0xad, 0xe2, 0x0f, 0x01, 0xad, 0xe0, 0x07, 0x00, 0xad, 0x09, 0x04, 0x40, 0xf9,
+        0x29, 0x09, 0x40, 0xf9,
+    ],
+};
+/// Lookup, `memset(sp+0x120, 0, 0x1000)`, then `.37ae170(sp+0x120, text, attr)`.
+pub const PLAIN_FORMAT: Site = Site {
+    name: "plain_format",
+    offset: 0x377a210,
+    guard: [
+        0x08, 0x0e, 0x01, 0xb0, 0x08, 0x31, 0x46, 0xf9, 0x00, 0x01, 0x40, 0xf9, 0xe1, 0x03, 0x14,
+        0xaa, 0x8c, 0xa8, 0x00, 0x94, 0x68, 0x5e, 0x42, 0xb9, 0xf4, 0x03, 0x00, 0xaa, 0xe0, 0x83,
+        0x04, 0x91, 0xe2, 0x03, 0x14, 0x32, 0xe1, 0x03, 0x1f, 0x2a, 0xa8, 0x83, 0x1d, 0xb8, 0x19,
+        0x18, 0x09, 0x94, 0xe0, 0x83, 0x04, 0x91, 0xa2, 0xa3, 0x00, 0xd1, 0xe1, 0x03, 0x14, 0xaa,
+        0xc9, 0xcf, 0x00, 0x94,
+    ],
+};
+/// Hooked: `mov w2,w0; add x1,sp,#0x120; mov x0,x19; mov w3,wzr; bl .37a2270`.
+pub const PLAIN_READY: Site = Site {
+    name: "plain_ready",
+    offset: PLAIN_HOOK,
+    guard: [
+        0xe2, 0x03, 0x00, 0x2a, 0xe1, 0x83, 0x04, 0x91, 0xe0, 0x03, 0x13, 0xaa, 0xe3, 0x03, 0x1f,
+        0x2a, 0x04, 0xa0, 0x00, 0x94, 0xff, 0x07, 0x40, 0x91, 0xff, 0x83, 0x04, 0x91, 0xfd, 0x7b,
+        0x43, 0xa9, 0xf4, 0x4f, 0x42, 0xa9, 0xf6, 0x57, 0x41, 0xa9, 0xfc, 0x07, 0x44, 0xf8, 0xc0,
+        0x03, 0x5f, 0xd6, 0xff, 0x43, 0x04, 0xd1, 0xfc, 0x7b, 0x00, 0xf9, 0xfd, 0x7b, 0x10, 0xa9,
+        0xfd, 0x03, 0x04, 0x91,
+    ],
+};
+/// `.37ae170` end: count bounded to 0x7ff, NUL at the count and at unit
+/// 0x7ff, `mov w0, w22`, epilogue.
+pub const PLAIN_BOUND: Site = Site {
+    name: "plain_bound",
+    offset: 0x37ae580,
+    guard: [
+        0xf8, 0x03, 0x1f, 0x2a, 0x16, 0x03, 0x16, 0x0b, 0x69, 0x03, 0x19, 0x0b, 0x3f, 0x01, 0x17,
+        0x6b, 0xcb, 0xe6, 0xff, 0x54, 0xdf, 0xfa, 0x1f, 0x71, 0x8d, 0x00, 0x00, 0x54, 0xf6, 0x2b,
+        0x00, 0x32, 0x02, 0x00, 0x00, 0x14, 0xf6, 0x03, 0x1f, 0x2a, 0x7f, 0xda, 0x36, 0x78, 0x7f,
+        0xfe, 0x1f, 0x79, 0xe0, 0x03, 0x16, 0x2a, 0xfd, 0x7b, 0x47, 0xa9, 0xf4, 0x4f, 0x46, 0xa9,
+        0xf6, 0x57, 0x45, 0xa9,
+    ],
+};
+
+/// One native point where a caller's finished UTF-16 text and its count are
+/// ready and the pane setter has not run yet.
+pub struct Route {
+    /// Install-line and event name.
+    pub name: &'static str,
+    /// Event payload (`communication_text route=`).
+    pub code: u64,
+    /// The hooked instruction, a `mov` that hands the count on.
+    pub hook: usize,
+    /// Register holding the native UTF-16 count at the hook. The relocated
+    /// `mov` reads it, so updating it changes the count the setter receives.
+    pub count: usize,
+    /// The guarded frame: FP == SP + `fp`.
+    pub fp: u64,
+    /// The caller's zeroed 0x800-unit buffer at SP + `buffer`.
+    pub buffer: u64,
+    /// For a hook inside a shared callee: the saved LR at SP + `.0` must be
+    /// `.text` + `.1`, the one caller whose frame holds that buffer.
+    pub caller: Option<(u64, u64)>,
+    /// Every site that must hold its 13.0.5 bytes before the hook goes in.
+    pub guards: &'static [&'static Site],
+}
+
+/// Label text with arguments: the formatter epilogue, for caller `.37a2660`
+/// only. The formatter frame is 96 bytes of saves plus 432 locals, so the
+/// caller's buffer (its SP) is at SP+528 and its return address at SP+520.
+pub const ARGS: Route = Route {
+    name: "args",
+    code: 0,
+    hook: ARGS_HOOK,
+    count: 20,
+    fp: 512,
+    buffer: 528,
+    caller: Some((520, 0x37a272c)),
+    guards: &[
+        &TEXT_STACK,
+        &TEXT_FORMAT,
+        &TEXT_READY,
+        &FORMAT_TERMINATOR,
+        &FORMAT_RETURN,
+        &FORMAT_STACK,
+    ],
+};
+
+/// Label text without arguments (the pop-up body's route for a sentence with
+/// no placeholders): inside `.377a120`, which owns the buffer, so any caller.
+/// Its frame is 0x40 bytes of saves (FP at +0x30) above 0x1120 bytes.
+pub const PLAIN: Route = Route {
+    name: "plain",
+    code: 1,
+    hook: PLAIN_HOOK,
+    count: 0,
+    fp: 0x1150,
+    buffer: 0x120,
+    caller: None,
+    guards: &[&PLAIN_STACK, &PLAIN_FORMAT, &PLAIN_READY, &PLAIN_BOUND],
+};
+
+pub const ROUTES: [&Route; 2] = [&ARGS, &PLAIN];
+
+/// Addresses inside a route's guarded frame, before any of them is read.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Frame {
+    pub buffer: u64,
+    pub saved_lr: Option<u64>,
+}
+
+impl Route {
+    /// The caller buffer and saved-LR slot for SP/FP at the hook, or `None`
+    /// when the frame is not the guarded one.
+    pub fn frame(&self, sp: u64, fp: u64) -> Option<Frame> {
+        if sp < 0x10000 || !sp.is_multiple_of(16) || fp != sp.checked_add(self.fp)? {
+            return None;
+        }
+        let buffer = sp.checked_add(self.buffer)?;
+        buffer.checked_add(2 * CAPACITY as u64)?;
+        let saved_lr = match self.caller {
+            Some((slot, _)) => Some(sp.checked_add(slot)?),
+            None => None,
+        };
+        Some(Frame { buffer, saved_lr })
+    }
+}
+
+/// The hook of every route, minus register access: checks the frame and the
+/// caller, then appends `reason()` to a communication-error text. `reason`
+/// runs only for such a text. Returns the reason and the new count.
+///
+/// # Safety
+/// `sp`/`fp` are the native SP and FP at `route.hook` with the guards of
+/// `route` matched, so the frame (and the saved LR slot, if any) is live.
+pub unsafe fn append_in_frame(
+    route: &Route,
+    text_base: u64,
+    sp: u64,
+    fp: u64,
+    len: usize,
+    reason: impl FnOnce() -> Reason,
+) -> Option<(Reason, usize)> {
+    if len >= CAPACITY {
         return None;
     }
-    Some((
-        sp.checked_add(FRAME_BYTES)?,
-        sp.checked_add(SAVED_LR_OFFSET)?,
-    ))
+    let frame = route.frame(sp, fp)?;
+    if let (Some(slot), Some((_, offset))) = (frame.saved_lr, route.caller) {
+        if (slot as *const u64).read_unaligned() != text_base.checked_add(offset)? {
+            return None;
+        }
+    }
+    // The guards fix this caller's zeroed 0x1000-byte buffer at this frame
+    // offset; it belongs to this call and is not kept.
+    let buffer = core::slice::from_raw_parts_mut(frame.buffer as *mut u16, CAPACITY);
+    if !is_communication_error(&buffer[..len]) {
+        return None;
+    }
+    let reason = reason();
+    append_reason(buffer, len, reason).map(|len| (reason, len))
 }
 
 /// Text tags have embedded zero words. Skip their payload for matching,

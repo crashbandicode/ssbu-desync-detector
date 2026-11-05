@@ -388,6 +388,8 @@ pub const COMMUNICATION_REASONS: [&str; 6] = [
     "timeout",
     "unknown",
 ];
+/// `dialog::Route::code` names, in `EV_COMMUNICATION_TEXT` bits 8..16.
+pub const COMMUNICATION_ROUTES: [&str; 2] = ["args", "plain"];
 
 /// Why a match recording was not saved (`EV_RECORDING` with no bytes).
 pub const RECORDING_REASONS: [&str; 9] = [
@@ -489,8 +491,15 @@ pub fn describe(event: &RawEvent, out: &mut impl fmt::Write) -> fmt::Result {
         ),
         EV_COMMUNICATION_TEXT => write!(
             out,
-            "communication_text reason={} text_units={b}",
-            COMMUNICATION_REASONS.get(a as usize).copied().unwrap_or("unknown")
+            "communication_text reason={} text_units={b} route={}",
+            COMMUNICATION_REASONS
+                .get((a & 0xff) as usize)
+                .copied()
+                .unwrap_or("unknown"),
+            COMMUNICATION_ROUTES
+                .get((a >> 8 & 0xff) as usize)
+                .copied()
+                .unwrap_or("unknown")
         ),
         EV_FRAME_GAP => write!(
             out,

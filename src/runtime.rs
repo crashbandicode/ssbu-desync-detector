@@ -1,6 +1,7 @@
 //! Switch half: version check, guarded inline hooks, two static rings and one
-//! writer thread. Simulation hooks observe the game's own reads. The UI hook
-//! appends a reason to the native text buffer; it writes no battle state.
+//! writer thread. Simulation hooks observe the game's own reads. The two UI
+//! text hooks append a reason to a native text buffer; they write no battle
+//! state.
 //! Events go to the rings. The writer thread
 //! runs on a static stack and owns every file, opened through `nn::fs` with
 //! paths built on the stack. Nothing allocates: the rings are static, buffers
@@ -166,47 +167,48 @@ fn disconnect_reason(now: u64) -> Reason {
     DISCONNECT_EVIDENCE.reason(now).unwrap_or(Reason::Unknown)
 }
 
-/// Formatter epilogue, before MOV w0,w20. Its guarded frame contains the
-/// caller's return address; only the zeroed-buffer caller is accepted.
-/// The aligned far patch relocates MOV/ADD/LDP/LDP, no branch or call.
-#[skyline::hook(offset = dialog::FORMAT_RETURN_OFFSET, inline)]
-unsafe fn desync_detector_communication_text(ctx: &mut InlineCtx) {
-    let len = ctx.registers[20].w() as usize;
-    if len >= dialog::CAPACITY {
-        return;
-    }
-    let Some((address, saved_lr)) = dialog::frame_addresses(ctx.sp.x(), ctx.registers[29].x())
-    else {
-        return;
-    };
-    let Some(caller) = TEXT_BASE
-        .load(Ordering::Relaxed)
-        .checked_add(dialog::CALLER_RETURN_OFFSET)
-    else {
-        return;
-    };
-    if read_u64(saved_lr) != caller {
-        return;
-    }
-    // SAFETY: installation verifies stack allocation, memset size, formatter
-    // capacity/count/terminator and this consumer. Buffer belongs to this call.
-    let buffer = core::slice::from_raw_parts_mut(address as *mut u16, dialog::CAPACITY);
-    if !dialog::is_communication_error(&buffer[..len]) {
-        return;
-    }
+/// The body of every text hook: `route` says where the count and the buffer
+/// are. Only the count register is changed, and only after an append.
+unsafe fn communication_text(route: &dialog::Route, ctx: &mut InlineCtx) {
     let now = tick();
-    let reason = disconnect_reason(now);
-    if let Some(new_len) = dialog::append_reason(buffer, len, reason) {
-        // Relocated MOV w0,w20 supplies the return value; the epilogue then
-        // restores the caller's original x20 from its saved stack slot.
-        ctx.registers[20].set_w(new_len as u32);
+    // SAFETY: installation matched every guard of `route`, which fixes the
+    // frame layout, the buffer size and zeroing, and the instructions around
+    // the hook. The buffer belongs to this call.
+    let appended = dialog::append_in_frame(
+        route,
+        TEXT_BASE.load(Ordering::Relaxed),
+        ctx.sp.x(),
+        ctx.registers[29].x(),
+        ctx.registers[route.count].w() as usize,
+        || disconnect_reason(now),
+    );
+    if let Some((reason, new_len)) = appended {
+        // The relocated MOV hands this count on (args: the formatter's return
+        // value, whose epilogue then restores the caller's x20; plain: the
+        // setter's count argument).
+        ctx.registers[route.count].set_w(new_len as u32);
         publish_event(&RawEvent {
             tick: now,
             code: model::EV_COMMUNICATION_TEXT,
-            a: reason.code(),
+            a: reason.code() | route.code << 8,
             b: new_len as u64,
         });
     }
+}
+
+/// Formatter epilogue, before MOV w0,w20. Its guarded frame contains the
+/// caller's return address; only the zeroed-buffer caller is accepted.
+/// The aligned far patch relocates MOV/ADD/LDP/LDP, no branch or call.
+#[skyline::hook(offset = dialog::ARGS_HOOK, inline)]
+unsafe fn desync_detector_communication_text(ctx: &mut InlineCtx) {
+    communication_text(&dialog::ARGS, ctx);
+}
+
+/// `.377a120` between its formatter and the pane setter, at MOV w2,w0. The
+/// aligned far patch relocates MOV/ADD/MOV/MOV; the setter call stays put.
+#[skyline::hook(offset = dialog::PLAIN_HOOK, inline)]
+unsafe fn desync_detector_plain_text(ctx: &mut InlineCtx) {
+    communication_text(&dialog::PLAIN, ctx);
 }
 
 /// Single producer: the game thread that runs the lockstep or the playback.
@@ -1183,7 +1185,7 @@ fn version_is_supported() -> bool {
 }
 
 /// Appends the install line to `events.log` and the Skyline log.
-fn report_install(report: &mut Line<384>) {
+fn report_install(report: &mut Line<512>) {
     let _ = write!(
         report,
         " heap_allocations={}",
@@ -1203,7 +1205,7 @@ fn report_install(report: &mut Line<384>) {
 pub fn main() {
     let started = tick();
     BOOT_TICK.store(started, Ordering::Relaxed);
-    let mut report = Line::<384>::new();
+    let mut report = Line::<512>::new();
     let _ = write!(
         report,
         "{} plugin=ssbu-desync-detector/{} telemetry=1",
@@ -1236,16 +1238,37 @@ pub fn main() {
         skyline::install_hook!(desync_detector_playback_check);
         let _ = write!(report, "{}playback", if lockstep { "," } else { "" });
     }
-    let mut dialog_ready = true;
-    for site in dialog::GUARDS {
-        if !unsafe { guard_matches(site) } {
-            dialog_ready = false;
-            let _ = write!(report, " dialog_guard_failed={}", site.name);
+    // Each text route goes in only when all of its own guards match.
+    let mut installed = [false; dialog::ROUTES.len()];
+    for (ready, route) in installed.iter_mut().zip(dialog::ROUTES) {
+        *ready = true;
+        for site in route.guards {
+            if !unsafe { guard_matches(site) } {
+                *ready = false;
+                let _ = write!(report, " dialog_guard_failed={}", site.name);
+            }
         }
     }
-    if dialog_ready {
+    if installed[dialog::ARGS.code as usize] {
         skyline::install_hook!(desync_detector_communication_text);
-        let _ = write!(report, " dialog=installed");
+    }
+    if installed[dialog::PLAIN.code as usize] {
+        skyline::install_hook!(desync_detector_plain_text);
+    }
+    let count = installed.iter().filter(|ready| **ready).count();
+    let _ = write!(
+        report,
+        " dialog={}",
+        match count {
+            0 => "not_installed",
+            n if n == installed.len() => "installed",
+            _ => "partial",
+        }
+    );
+    let mut separator = " text_routes=";
+    for (_, route) in installed.iter().zip(dialog::ROUTES).filter(|(r, _)| **r) {
+        let _ = write!(report, "{separator}{}", route.name);
+        separator = ",";
     }
     // The writer appends to the same log, so it starts only after this line
     // (and the folder) exist.
