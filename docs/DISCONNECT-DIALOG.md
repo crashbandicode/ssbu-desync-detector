@@ -1,6 +1,32 @@
 # Disconnect reasons and incident evidence
 
-2026-11-03. Local candidate on `feat/disconnect-reason-dialog`.
+## 2026-11-05: the pop-up's no-argument route
+
+On the Switch, telemetry build `02488cdc` logged a real desync at 15:32:57
+(`desync frame=4348 ours=0x7774d5d0 theirs=0x9985577d`, `sync_end
+trigger=desync`) and the game showed its "A connection error occurred"
+pop-up, with no `communication_text` event: the reason was not added.
+
+The game sets label text two ways. The pop-up manager's body text function
+`.1eef640` (called from the pop-up dispatch at `.32f1cc4`) calls `.37a2660`
+when the message has arguments and `.377a120` when it has none. Only the
+first passes the formatter `.37ab750` that the hook at `.37ad8e8` watched.
+`.377a120` formats through `.37ae170` into its own zeroed 0x1000-byte stack
+buffer and hands the count to the pane setter `.37a2270`. A sentence with no
+placeholders therefore never reached the hook (static, hash-verified 13.0.5
+NSO; dynamic confirmation below).
+
+Branch `feat/disconnect-popup-route` adds a second route, `plain`, hooked at
+`.377a250` between `.37ae170`'s return and the setter call; both routes share
+one hook body (`append_in_frame`) and the same reason, filter and append
+rules. Install line: `dialog=installed text_routes=args,plain`; event:
+`communication_text … route=plain`. Sites, guards and the card scan:
+[HOOKS.md](HOOKS.md). Build `680bc561` (57,344 bytes, 136 KiB resident);
+host tests, clippy, no-default-features, release and diag builds pass.
+
+## 2026-11-03
+
+Local candidate on `feat/disconnect-reason-dialog`.
 The pre-telemetry UI candidate booted in Eden and its hook installed;
 the target communication-error dialog remains unverified. The newer
 telemetry candidate has host/build checks only. It was installed as a local
