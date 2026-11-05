@@ -177,6 +177,44 @@ pub fn xor_words(bytes: &[u8]) -> u32 {
         .fold(0, |acc, word| acc ^ u32::from_le_bytes(*word))
 }
 
+/// Eden-only test switches the diag build reads from `diag.txt`; the
+/// shipped NRO never reads them.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Diag {
+    /// The online frame whose check value this console stores with its low
+    /// bit flipped. Both consoles then record a mismatch at that frame and
+    /// the game ends the session on its own desync path; the simulation
+    /// itself is untouched.
+    pub force_desync_frame: Option<u32>,
+}
+
+/// `key=value` lines; unknown keys, bad numbers and other lines are ignored.
+pub fn parse_diag(text: &[u8]) -> Diag {
+    let mut diag = Diag::default();
+    for line in text.split(|byte| *byte == b'\n') {
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        let Some(split) = line.iter().position(|byte| *byte == b'=') else {
+            continue;
+        };
+        let (key, value) = (line[..split].trim_ascii(), line[split + 1..].trim_ascii());
+        if key == b"force_desync_frame" {
+            diag.force_desync_frame = core::str::from_utf8(value)
+                .ok()
+                .and_then(|value| value.parse().ok());
+        }
+    }
+    diag
+}
+
+/// The check value a diag build stores for `frame` (unchanged unless forced).
+pub fn diag_check_value(value: u32, frame: u32, diag: &Diag) -> u32 {
+    if diag.force_desync_frame == Some(frame) {
+        value ^ 1
+    } else {
+        value
+    }
+}
+
 /// The packed local time at outer `+0`: year, month, day, hour and minute
 /// in the low word, the second in the high word (other high bits as saved
 /// replays have them).
@@ -750,6 +788,25 @@ pub fn referee(
 mod tests {
     use super::*;
     use core::fmt::Write as _;
+
+    #[test]
+    fn diag_forces_one_frames_check_value_and_nothing_else() {
+        let diag = parse_diag(b"# Eden only\r\nforce_desync_frame = 600\r\nother=1\n");
+        assert_eq!(diag.force_desync_frame, Some(600));
+        assert_eq!(diag_check_value(0x7774_d5d0, 600, &diag), 0x7774_d5d1);
+        assert_eq!(diag_check_value(0x7774_d5d0, 599, &diag), 0x7774_d5d0);
+        assert_eq!(diag_check_value(0x7774_d5d0, 601, &diag), 0x7774_d5d0);
+        for text in [
+            &b""[..],
+            b"force_desync_frame=",
+            b"force_desync_frame=-1",
+            b"frame=600",
+        ] {
+            let none = parse_diag(text);
+            assert_eq!(none, Diag::default());
+            assert_eq!(diag_check_value(5, 600, &none), 5);
+        }
+    }
 
     #[test]
     fn guards_start_with_the_hooked_instructions() {

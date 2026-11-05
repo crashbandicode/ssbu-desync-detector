@@ -57,6 +57,25 @@ class StreamAttribution(unittest.TestCase):
         self.assertIn({'stream': 7, 'name': 'sound', 'draws': 1}, found)
         self.assertEqual(sa.hypotheses(states, ours, ours ^ 0x1234567, 4), [])
 
+    def test_reconstruction_follows_logged_values_and_stops_when_ambiguous(self):
+        start = seeded(9)
+        frames, states = {}, list(start)
+        steps = {11: (1, 1), 13: (7, 2), 14: (1, 1)}
+        for f in range(11, 16):
+            if f in steps:
+                k, n = steps[f]
+                states[k] = sa.advance(states[k], n)
+            frames[f] = sa.check_value(states)
+        rebuilt, reached, lines = sa.reconstruct(start, frames, 10, 15)
+        self.assertEqual(reached, 15)
+        self.assertEqual(rebuilt, states)
+        self.assertEqual(lines, ['frame 11: fighter +1', 'frame 13: sound +2', 'frame 14: fighter +1'])
+        # A value no single or paired advance explains stops the walk at that frame.
+        frames[16] = frames[15] ^ 0x5a5a5a5a
+        _, reached, lines = sa.reconstruct(start, frames, 10, 16)
+        self.assertEqual(reached, 15)
+        self.assertTrue(lines[-1].startswith('frame 16: no explanation'))
+
     def test_trace_records_load_by_detector_frame_and_check_against_frames_files(self):
         first, second = seeded(1), seeded(1)
         second[1] = sa.advance(first[1], 1)

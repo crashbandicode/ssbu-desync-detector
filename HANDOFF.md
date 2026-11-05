@@ -19,6 +19,8 @@ Gates r2 (gates/r2-*.log): test 131 pass, clippy -D warnings, no-default,
 release, diag all exit 0. Release = diag NRO sha256 680bc561aaa2b976...,
 57344 B, resident 139264 (136 KiB); artifacts/r2/.
 
+Live 21:41Z: queue2 (bg, popup-route/queue-up2.ps1, log queue2.log) waits for a gap on the Surface (run /home/intpa/eden-runs/dd-popup-01 there) or the Yoga (run /home/intpa/eden-runs/dd-popup-y01), then eden_test.py up once. Both hosts busy with other owners. Next after Up: et.ps1 -Mode run (Surface) or eden_test.py run (Yoga); Task B Vault rows recorded in-boot; always down.
+
 Open: Eden pair proof (route trace + pop-up screenshot + communication_text
 route=plain), Task B replay of card match-0.bin. No push/install/card.
 # Disconnect-reason candidate — 2026-11-03

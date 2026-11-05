@@ -262,13 +262,55 @@ unsafe fn rng_check_now() -> u32 {
     )
 }
 
+/// Diag build only: the online frame whose stored check value is flipped
+/// (`force_desync_frame` in `diag.txt`; `u64::MAX` = off).
+#[cfg(feature = "diag")]
+static FORCE_DESYNC_FRAME: AtomicU64 = AtomicU64::new(u64::MAX);
+
+/// Diag build only: reads `diag.txt` (at most 256 bytes) into the switches.
+#[cfg(feature = "diag")]
+fn read_diag() -> model::Diag {
+    let mut text = [0u8; 256];
+    let mut diag_path = path(format_args!("{DATA_DIR}/diag.txt"));
+    let Some(path) = diag_path.with_nul() else {
+        return model::Diag::default();
+    };
+    let read = unsafe {
+        let mut handle = nn::fs::FileHandle { handle: 0 };
+        if nn::fs::OpenFile(&mut handle, path.as_ptr(), OPEN_READ) != 0 {
+            return model::Diag::default();
+        }
+        let mut read = 0u64;
+        let result = nn::fs::ReadFile1(&mut read, handle, 0, text.as_mut_ptr(), text.len() as u64);
+        nn::fs::CloseFile(handle);
+        if result != 0 {
+            return model::Diag::default();
+        }
+        read as usize
+    };
+    model::parse_diag(&text[..read.min(text.len())])
+}
+
 #[skyline::hook(offset = model::FRAME_CHECK_OFFSET, inline)]
-unsafe fn desync_detector_frame_check(ctx: &InlineCtx) {
+unsafe fn desync_detector_frame_check(ctx: &mut InlineCtx) {
     let record = ctx.registers[10].x().wrapping_sub(0xa);
     if record < 0x10000 {
         return;
     }
     let frame = u32::from(read_u16(record));
+    // Diag build only: `stp w11, w8, [x9]` at this site stores w11 as this
+    // console's check value for the frame; a forced frame stores it flipped.
+    #[cfg(feature = "diag")]
+    {
+        let forced = FORCE_DESYNC_FRAME.load(Ordering::Relaxed);
+        if forced <= u64::from(u32::MAX) {
+            let diag = model::Diag {
+                force_desync_frame: Some(forced as u32),
+            };
+            let value = ctx.registers[11].w();
+            ctx.registers[11].set_w(model::diag_check_value(value, frame, &diag));
+        }
+    }
     DISCONNECT_EVIDENCE.frame(tick(), KIND_ONLINE, ctx.registers[19].x(), frame);
     push_frame(FrameRecord {
         frame,
@@ -1221,6 +1263,10 @@ pub fn main() {
         unsafe { getRegionAddress(Region::Text) as u64 },
         Ordering::Relaxed,
     );
+    #[cfg(feature = "diag")]
+    if let Some(frame) = read_diag().force_desync_frame {
+        FORCE_DESYNC_FRAME.store(u64::from(frame), Ordering::Relaxed);
+    }
     let _ = write!(report, " hooks=");
     let lockstep = [&FRAME_CHECK, &DESYNC, &SYNC_END, &PEER_ABORT]
         .iter()
@@ -1269,6 +1315,13 @@ pub fn main() {
     for (_, route) in installed.iter().zip(dialog::ROUTES).filter(|(r, _)| **r) {
         let _ = write!(report, "{separator}{}", route.name);
         separator = ",";
+    }
+    #[cfg(feature = "diag")]
+    {
+        let forced = FORCE_DESYNC_FRAME.load(Ordering::Relaxed);
+        if forced <= u64::from(u32::MAX) {
+            let _ = write!(report, " diag_force_desync_frame={forced}");
+        }
     }
     // The writer appends to the same log, so it starts only after this line
     // (and the folder) exist.

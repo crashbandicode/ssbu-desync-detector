@@ -1,0 +1,1099 @@
+{
+  "game_id": "01006A800016E000",
+  "start": "frontend-ready",
+  "about": "Popup route (2026-11-05): a same-host LAN Online pair, detector + tile cursor on both. Quickplay match, then instance b is paused so a's peer goes silent and a shows the communication-error pop-up. Trace points on a (config trace) show which text route carries it; the detector log shows communication_text with its route.",
+  "setup": [
+    {
+      "state": "LAN Online on, TLS off, both instances",
+      "via": "fixture",
+      "ref": "source profile trainingrooms-eden-lead-astra4/profiles/g qt-config.ini: lan_online=true, lan_online_tls=false"
+    },
+    {
+      "state": "Title to main menu",
+      "via": "hook",
+      "ref": "steps.py:to_main (+ until the library main reference matches), gate library main"
+    },
+    {
+      "state": "Main menu to Online, Smash, Quickplay, Solo, CSS hand on a tile",
+      "via": "record",
+      "ref": "segments to-online, to-quickplay, to-css (recipes, recorded on a, played on b)"
+    },
+    {
+      "state": "Matched Quickplay session on both",
+      "via": "record",
+      "ref": "segment pick, gate matched (detector session line on a and b)"
+    },
+    {
+      "state": "Peer silent mid-match",
+      "via": "hook",
+      "ref": "call game.pause on b"
+    }
+  ],
+  "segments": {
+    "attract-cancel": {
+      "file": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/library/segments/attract-cancel.edenmacro.json",
+      "sha256": "1b506dbfc689e79e8bfca69b74274ab674b91ac8359219a1a4c95faa81aae70f",
+      "cap": 30,
+      "start_gate": null,
+      "end_gate": "main",
+      "from_run": "p4r-shared",
+      "row": "nav00-attract-cancel",
+      "library": "attract-cancel"
+    },
+    "to-online": {
+      "file": "segments/to-online.edenmacro.json",
+      "cap": 60,
+      "recipe": [
+        {
+          "buttons": "down",
+          "hold": 150,
+          "gap": 0.9
+        },
+        {
+          "buttons": "right",
+          "hold": 150,
+          "gap": 1.2
+        },
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 14
+        }
+      ],
+      "sha256": "d52590537267a9aa817e3d7e8969fde0d70e38ca93cf36a5ca616ba8d4678858",
+      "recorded": "2026-11-05T22:31:06Z"
+    },
+    "to-quickplay": {
+      "file": "segments/to-quickplay.edenmacro.json",
+      "cap": 40,
+      "recipe": [
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 7
+        },
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 6
+        }
+      ],
+      "sha256": "4db24aee967ca0721918af0291deb53cbefdc07ce4485cf8d423401a5bc63acc",
+      "recorded": "2026-11-05T22:31:55Z"
+    },
+    "to-css": {
+      "file": "segments/to-css.edenmacro.json",
+      "cap": 60,
+      "recipe": [
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 20
+        },
+        {
+          "buttons": "lstick,up",
+          "hold": 150,
+          "gap": 1.5
+        }
+      ],
+      "sha256": "df589d123449a453b70525e393591b2a95249bc8d55470402985236df774a4d5",
+      "recorded": "2026-11-05T22:32:44Z"
+    },
+    "pick": {
+      "file": "segments/pick.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 3
+        }
+      ],
+      "sha256": "aa7177b16f3c04163c79e3faac2cc3f5ba6ea52ab569c5a0d2d6c5e5acf7ca02",
+      "recorded": "2026-11-05T22:33:11Z"
+    },
+    "ready": {
+      "file": "segments/ready.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "buttons": "a",
+          "gap": 3,
+          "hold": 150
+        }
+      ],
+      "sha256": "a66184f087ac3841bbecd7198f2adbc20ffab73d18c1ba2a84edecc4027c7ede",
+      "recorded": "2026-11-05T22:39:09Z"
+    },
+    "ok": {
+      "file": "segments/ok.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "gap": 4,
+          "buttons": "a",
+          "hold": 150
+        }
+      ],
+      "sha256": "5a7b339ad93ed3b8dc5ab31e8e771ebd02aa73e8a1777d6beaa02da3f019175d",
+      "recorded": "2026-11-05T22:47:11Z"
+    },
+    "to-vault": {
+      "file": "segments/to-vault.edenmacro.json",
+      "cap": 30,
+      "recipe": [
+        {
+          "hold": 150,
+          "buttons": "right",
+          "gap": 1.0
+        },
+        {
+          "hold": 150,
+          "buttons": "a",
+          "gap": 6
+        }
+      ]
+    },
+    "smash-to-quickplay": {
+      "file": "segments/smash-to-quickplay.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "hold": 150,
+          "buttons": "a",
+          "gap": 6
+        }
+      ],
+      "sha256": "c48fb0bcce639e2604675815007db52cee369b26eba1ad3551781169f5e0602b",
+      "recorded": "2026-11-05T22:49:56Z"
+    },
+    "back": {
+      "file": "segments/back.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "buttons": "b",
+          "gap": 4,
+          "hold": 150
+        }
+      ],
+      "sha256": "fd2a36026d064882a3bffee0735c9082e64cac87e39bb7c7de1177f4d3a5cde5",
+      "recorded": "2026-11-05T22:57:50Z"
+    },
+    "online-to-vault": {
+      "file": "segments/online-to-vault.edenmacro.json",
+      "cap": 30,
+      "recipe": [
+        {
+          "gap": 1.0,
+          "hold": 150,
+          "buttons": "up"
+        },
+        {
+          "gap": 6,
+          "hold": 150,
+          "buttons": "a"
+        }
+      ],
+      "sha256": "f738663b4660218a8a108d2b6c483805f0ece142eea8e3001e14f80fb1d046fc",
+      "recorded": "2026-11-05T22:58:39Z"
+    },
+    "to-replays": {
+      "file": "segments/to-replays.edenmacro.json",
+      "cap": 30,
+      "recipe": [
+        {
+          "buttons": "right",
+          "hold": 150,
+          "gap": 1.0
+        },
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 6
+        }
+      ],
+      "sha256": "212cae32caa6f867e45d650661a31b8764703fcc9589ade74dec0c5456f8a459",
+      "recorded": "2026-11-05T22:59:01Z"
+    },
+    "select": {
+      "file": "segments/select.edenmacro.json",
+      "cap": 30,
+      "recipe": [
+        {
+          "gap": 6,
+          "buttons": "a",
+          "hold": 150
+        }
+      ],
+      "sha256": "17ca6bcc8d1da8732255d8fccc0b9a2e58cbf1cf8fb1938a1baab75701f8c8c8",
+      "recorded": "2026-11-05T22:59:21Z"
+    }
+  },
+  "gates": {
+    "loaded": {
+      "kind": "status",
+      "expect": {
+        "running": true,
+        "loading_complete": true
+      },
+      "max_frame_age_ms": 1500,
+      "cap": 180,
+      "from_run": "p4s-shared",
+      "library": "loaded"
+    },
+    "main": {
+      "kind": "image",
+      "reference": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/library/refs/main.png",
+      "sha256": "902628cebd8620847be44e41a826046740f495ca0dfa7e78d8482c43c0da1bdc",
+      "roi": [
+        150,
+        265,
+        450,
+        335
+      ],
+      "tolerance": 8,
+      "cap": 30,
+      "reference_is_roi": true,
+      "from_run": "lr-03",
+      "library": "main",
+      "recover": "attract-cancel"
+    },
+    "installed": {
+      "kind": "log",
+      "source": "detector_log",
+      "whole_file": true,
+      "cap": 120,
+      "pattern": "plugin=ssbu-desync-detector/0\\.2\\.0 telemetry=1 hooks=lockstep,playback dialog=installed text_routes=args,plain heap_allocations=0"
+    },
+    "online-menu": {
+      "kind": "image",
+      "reference": "refs/online-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 40,
+      "sha256": "2f4d98fd992d0bf622806cd7d3bd1442754940dd5d4296ce41dfee089bf3bcc9",
+      "acquired": "2026-11-05T22:31:12Z"
+    },
+    "quickplay-menu": {
+      "kind": "image",
+      "reference": "refs/quickplay-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 40,
+      "sha256": "4bf9d8236d2630faa734950587817c432e478e0b2d2b6396f2de6b7015ff070f",
+      "acquired": "2026-11-05T22:31:56Z"
+    },
+    "css-tile": {
+      "kind": "log",
+      "source": "tile_log",
+      "pattern": "settled screen=css at=(\\d+) hovered=\\1\\b",
+      "cap": 40
+    },
+    "matched": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "session slot=\\d+ kind=online",
+      "on_all": [
+        "a",
+        "b"
+      ],
+      "cap": 300
+    },
+    "popup-text": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "communication_text reason=\\w+ text_units=\\d+ route=\\w+",
+      "cap": 240
+    },
+    "ready-banner": {
+      "kind": "image",
+      "reference": "refs/ready-banner.png",
+      "roi": [
+        200,
+        110,
+        600,
+        240
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "a70e14b154caa901a65a3d2f0dcac1d852a9635372103097dd67791b256900be",
+      "acquired": "2026-11-05T22:39:06Z"
+    },
+    "vault-menu": {
+      "kind": "image",
+      "reference": "refs/vault-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "a37b002d341e3bd6fc193614008a8950109662ce32c14d8d5edfb339f8edab6d",
+      "acquired": "2026-11-05T22:58:40Z"
+    },
+    "smash-online-menu": {
+      "kind": "image",
+      "reference": "refs/smash-online-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "65c79cde72778b301b37e25d2cdeaaa0a38b00f9af7a405ce6d8aab3d8721df0",
+      "acquired": "2026-11-05T22:49:49Z"
+    },
+    "main-online": {
+      "kind": "image",
+      "reference": "refs/main-online.png",
+      "roi": [
+        700,
+        520,
+        920,
+        590
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "c766dfd1d5be47fc0c53e74b861e15f3d58248fc2cdf601d61ad3bfacbe12b86",
+      "acquired": "2026-11-05T22:58:25Z"
+    },
+    "replays-menu": {
+      "kind": "image",
+      "reference": "refs/replays-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "0473bd9a725dd6e529720158fc1360b28f054ed897fa27a05642ea9086a3cb2a",
+      "acquired": "2026-11-05T22:59:01Z"
+    },
+    "replay-list": {
+      "kind": "image",
+      "reference": "refs/replay-list.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 40,
+      "sha256": "e8287f5b02a14790974f1f46140aa3769d1b81e84248d342e5e122c69882d5dc",
+      "acquired": "2026-11-05T22:59:22Z"
+    },
+    "playback-start": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "session slot=\\d+ kind=playback",
+      "cap": 90
+    },
+    "playback-end": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "kind=playback slot=\\d+ frame=(43[5-9]\\d|4[4-9]\\d\\d|[5-9]\\d{3}|\\d{5})|frame_gap kind=playback|playback_mismatch",
+      "cap": 300
+    }
+  },
+  "rows": [
+    {
+      "id": "r00-load",
+      "start": "frontend-ready",
+      "end": "loaded",
+      "budget_min": 4,
+      "steps": [
+        {
+          "call": "game.load",
+          "params": {
+            "path": "@game"
+          },
+          "job_cap": 180,
+          "on": "a"
+        },
+        {
+          "call": "game.load",
+          "params": {
+            "path": "@game"
+          },
+          "job_cap": 180,
+          "on": "b"
+        },
+        {
+          "gate": "loaded",
+          "on": "a"
+        },
+        {
+          "gate": "loaded",
+          "on": "b"
+        },
+        {
+          "gate": "installed",
+          "on": "a"
+        },
+        {
+          "gate": "installed",
+          "on": "b"
+        },
+        {
+          "copy": "detector_log",
+          "as": "install-a",
+          "on": "a"
+        },
+        {
+          "copy": "detector_log",
+          "as": "install-b",
+          "on": "b"
+        }
+      ],
+      "evidence": [
+        "install lines with dialog=installed text_routes=args,plain heap_allocations=0 on both"
+      ]
+    },
+    {
+      "id": "r01-main",
+      "start": "loaded",
+      "end": "main",
+      "budget_min": 2,
+      "steps": [
+        {
+          "gate": "loaded",
+          "on": "a"
+        },
+        {
+          "gate": "loaded",
+          "on": "b"
+        },
+        {
+          "on": "a",
+          "run": "steps.py:to_main",
+          "check": true
+        },
+        {
+          "on": "b",
+          "run": "steps.py:to_main",
+          "check": true
+        },
+        {
+          "gate": "main",
+          "on": "a"
+        },
+        {
+          "gate": "main",
+          "on": "b"
+        },
+        {
+          "on": "a",
+          "shot": "main"
+        },
+        {
+          "on": "b",
+          "shot": "main"
+        }
+      ],
+      "evidence": [
+        "main menu on both"
+      ]
+    },
+    {
+      "id": "r02-online",
+      "start": "main",
+      "end": "online-menu",
+      "budget_min": 2,
+      "steps": [
+        {
+          "gate": "main",
+          "on": "a"
+        },
+        {
+          "play": "to-online",
+          "on": "a"
+        },
+        {
+          "gate": "online-menu",
+          "on": "a"
+        },
+        {
+          "gate": "main",
+          "on": "b"
+        },
+        {
+          "play": "to-online",
+          "on": "b"
+        },
+        {
+          "gate": "online-menu",
+          "on": "b"
+        },
+        {
+          "shot": "online",
+          "on": "a"
+        },
+        {
+          "shot": "online",
+          "on": "b"
+        }
+      ],
+      "evidence": [
+        "Online menu header on both"
+      ]
+    },
+    {
+      "id": "r03-quickplay",
+      "start": "online-menu",
+      "end": "quickplay-menu",
+      "budget_min": 2,
+      "steps": [
+        {
+          "gate": "online-menu",
+          "on": "a"
+        },
+        {
+          "play": "to-quickplay",
+          "on": "a"
+        },
+        {
+          "gate": "quickplay-menu",
+          "on": "a"
+        },
+        {
+          "gate": "online-menu",
+          "on": "b"
+        },
+        {
+          "play": "to-quickplay",
+          "on": "b"
+        },
+        {
+          "gate": "quickplay-menu",
+          "on": "b"
+        },
+        {
+          "shot": "quickplay",
+          "on": "a"
+        },
+        {
+          "shot": "quickplay",
+          "on": "b"
+        }
+      ],
+      "evidence": [
+        "Quickplay menu header on both"
+      ]
+    },
+    {
+      "id": "r04-css-match",
+      "start": "quickplay-menu",
+      "end": "matched",
+      "budget_min": 8,
+      "steps": [
+        {
+          "gate": "ready-banner",
+          "on": "a"
+        },
+        {
+          "play": "ready",
+          "on": "a"
+        },
+        {
+          "gate": "ready-banner",
+          "on": "b"
+        },
+        {
+          "play": "ready",
+          "on": "b"
+        },
+        {
+          "gate": "matched",
+          "on": "a"
+        },
+        {
+          "shot": "match",
+          "on": "a"
+        },
+        {
+          "shot": "match",
+          "on": "b"
+        }
+      ],
+      "evidence": [
+        "tile cursor settled on a CSS tile on both",
+        "detector session kind=online on both: the Quickplay match is running"
+      ],
+      "note": "Same boot, second attempt: the first attempt reached the CSS (css-tile passed, tile on Sephiroth) and placed the token; the game then waits on READY TO FIGHT, so this attempt resumes there."
+    },
+    {
+      "id": "r06-drop",
+      "start": "matched",
+      "end": "after-drop",
+      "budget_min": 5,
+      "steps": [
+        {
+          "on": "a",
+          "shot": "inactivity-popup"
+        },
+        {
+          "on": "a",
+          "copy": "trace_jsonl",
+          "as": "trace-inactivity"
+        },
+        {
+          "on": "a",
+          "copy": "detector_log",
+          "as": "events-a-inactivity"
+        },
+        {
+          "call": "game.resume",
+          "on": "b"
+        },
+        {
+          "wait_ms": 15000,
+          "reason": "b runs into a session whose peer already left"
+        },
+        {
+          "on": "b",
+          "shot": "after-resume"
+        },
+        {
+          "on": "a",
+          "shot": "after-resume"
+        },
+        {
+          "on": "b",
+          "copy": "detector_log",
+          "as": "events-b-after-resume"
+        }
+      ],
+      "evidence": [
+        "pop-up screenshot on a",
+        "communication_text with its route on a",
+        "trace records of the text route on a"
+      ],
+      "note": "First attempt: a had no input during the match and got \"You have been disconnected due to inactivity.\" (trace point 4: .1eef640 from .32f1cc8). This attempt keeps that as evidence, arms corrected live trace points on a and b, and resumes b. Live points 5-8 on a were armed by the previous attempt of this row (actions.jsonl); b has no trace output (not configured at launch)."
+    },
+    {
+      "id": "r07-peer",
+      "start": "after-drop",
+      "end": "after-drop",
+      "budget_min": 2,
+      "steps": [
+        {
+          "wait_ms": 5000,
+          "reason": "look again"
+        },
+        {
+          "on": "a",
+          "shot": "look"
+        },
+        {
+          "on": "b",
+          "shot": "look"
+        }
+      ],
+      "evidence": [
+        "what b shows after resuming",
+        "b's detector log"
+      ]
+    },
+    {
+      "id": "r08-dismiss",
+      "start": "after-drop",
+      "end": "after-dismiss",
+      "budget_min": 2,
+      "note": "Recovery: OK on a's inactivity pop-up, Close on b's system error applet.",
+      "steps": [
+        {
+          "play": "ok",
+          "unchecked": true,
+          "on": "a"
+        },
+        {
+          "play": "ok",
+          "unchecked": true,
+          "on": "b"
+        },
+        {
+          "wait_ms": 8000,
+          "reason": "menus load after the pop-ups close"
+        },
+        {
+          "shot": "after-dismiss",
+          "on": "a"
+        },
+        {
+          "shot": "after-dismiss",
+          "on": "b"
+        }
+      ]
+    },
+    {
+      "id": "r09-requeue",
+      "start": "after-dismiss",
+      "end": "quickplay-menu",
+      "budget_min": 3,
+      "note": "Attempt 2: a reached Quickplay in attempt 1; b reached Quickplay behind the pop-up \"You disconnected in the middle of your last online battle\", so b presses OK.",
+      "steps": [
+        {
+          "gate": "quickplay-menu",
+          "on": "a"
+        },
+        {
+          "play": "ok",
+          "unchecked": true,
+          "on": "b"
+        },
+        {
+          "gate": "quickplay-menu",
+          "on": "b"
+        },
+        {
+          "shot": "quickplay",
+          "on": "a"
+        },
+        {
+          "shot": "quickplay",
+          "on": "b"
+        }
+      ]
+    },
+    {
+      "id": "r10-match2",
+      "start": "quickplay-menu",
+      "end": "matched",
+      "budget_min": 6,
+      "steps": [
+        {
+          "gate": "quickplay-menu",
+          "on": "a"
+        },
+        {
+          "play": "to-css",
+          "on": "a"
+        },
+        {
+          "gate": "css-tile",
+          "on": "a"
+        },
+        {
+          "play": "pick",
+          "on": "a"
+        },
+        {
+          "gate": "ready-banner",
+          "on": "a"
+        },
+        {
+          "play": "ready",
+          "on": "a"
+        },
+        {
+          "gate": "quickplay-menu",
+          "on": "b"
+        },
+        {
+          "play": "to-css",
+          "on": "b"
+        },
+        {
+          "gate": "css-tile",
+          "on": "b"
+        },
+        {
+          "play": "pick",
+          "on": "b"
+        },
+        {
+          "gate": "ready-banner",
+          "on": "b"
+        },
+        {
+          "play": "ready",
+          "on": "b"
+        },
+        {
+          "gate": "matched",
+          "on": "a"
+        },
+        {
+          "shot": "match2",
+          "on": "a"
+        },
+        {
+          "shot": "match2",
+          "on": "b"
+        }
+      ]
+    },
+    {
+      "id": "r11-survivor",
+      "start": "matched",
+      "end": "survivor-popup",
+      "budget_min": 5,
+      "steps": [
+        {
+          "on": "a",
+          "shot": "survivor-inactivity"
+        },
+        {
+          "on": "a",
+          "copy": "detector_log",
+          "as": "events-a-survivor"
+        },
+        {
+          "on": "a",
+          "copy": "trace_jsonl",
+          "as": "trace-a-survivor"
+        }
+      ]
+    },
+    {
+      "id": "r12-peer2",
+      "start": "survivor-popup",
+      "end": "peer2-resumed",
+      "budget_min": 2,
+      "steps": [
+        {
+          "on": "b",
+          "call": "game.resume"
+        },
+        {
+          "wait_ms": 10000,
+          "reason": "b resumes"
+        },
+        {
+          "on": "b",
+          "shot": "peer2"
+        },
+        {
+          "on": "b",
+          "copy": "detector_log",
+          "as": "events-b-2"
+        }
+      ]
+    },
+    {
+      "id": "r13-a-dismiss",
+      "start": "peer2-resumed",
+      "end": "a-after-popups",
+      "budget_min": 2,
+      "steps": [
+        {
+          "play": "ok",
+          "unchecked": true,
+          "on": "a"
+        },
+        {
+          "wait_ms": 5000,
+          "reason": "next pop-up"
+        },
+        {
+          "on": "a",
+          "shot": "after-ok-1"
+        },
+        {
+          "play": "ok",
+          "unchecked": true,
+          "on": "a"
+        },
+        {
+          "wait_ms": 6000,
+          "reason": "menu loads"
+        },
+        {
+          "on": "a",
+          "shot": "after-ok-2"
+        }
+      ]
+    },
+    {
+      "id": "r14-a-main",
+      "start": "a-after-popups",
+      "end": "main",
+      "budget_min": 2,
+      "steps": [
+        {
+          "on": "a",
+          "gate": "main-online"
+        },
+        {
+          "on": "a",
+          "shot": "main-online"
+        }
+      ]
+    },
+    {
+      "id": "r15-vault",
+      "start": "main",
+      "end": "vault-menu",
+      "budget_min": 2,
+      "steps": [
+        {
+          "on": "a",
+          "gate": "main-online"
+        },
+        {
+          "on": "a",
+          "play": "online-to-vault"
+        },
+        {
+          "on": "a",
+          "gate": "vault-menu"
+        },
+        {
+          "on": "a",
+          "shot": "vault"
+        }
+      ]
+    },
+    {
+      "id": "r16-replays",
+      "start": "vault-menu",
+      "end": "replays-menu",
+      "budget_min": 2,
+      "steps": [
+        {
+          "on": "a",
+          "gate": "vault-menu"
+        },
+        {
+          "on": "a",
+          "play": "to-replays"
+        },
+        {
+          "on": "a",
+          "gate": "replays-menu"
+        },
+        {
+          "shot": "replays",
+          "on": "a"
+        }
+      ]
+    },
+    {
+      "id": "r17-replay-list",
+      "start": "replays-menu",
+      "end": "replay-list",
+      "budget_min": 2,
+      "steps": [
+        {
+          "on": "a",
+          "gate": "replays-menu"
+        },
+        {
+          "on": "a",
+          "play": "select"
+        },
+        {
+          "on": "a",
+          "gate": "replay-list"
+        },
+        {
+          "shot": "replay-list",
+          "on": "a"
+        }
+      ]
+    },
+    {
+      "id": "r18-playback",
+      "start": "replay-list",
+      "end": "playback",
+      "budget_min": 7,
+      "steps": [
+        {
+          "on": "a",
+          "run": "steps.py:arm_rng_trace"
+        },
+        {
+          "on": "a",
+          "gate": "replay-list"
+        },
+        {
+          "on": "a",
+          "play": "select"
+        },
+        {
+          "on": "a",
+          "shot": "replay-options"
+        },
+        {
+          "on": "a",
+          "play": "select",
+          "unchecked": true
+        },
+        {
+          "on": "a",
+          "gate": "playback-start"
+        },
+        {
+          "wait_ms": 10000,
+          "reason": "a view of the playback"
+        },
+        {
+          "on": "a",
+          "shot": "playback"
+        },
+        {
+          "on": "a",
+          "gate": "playback-end"
+        },
+        {
+          "on": "a",
+          "shot": "playback-end"
+        },
+        {
+          "wait_ms": 3000,
+          "reason": "writer drains frames"
+        },
+        {
+          "args": {
+            "name": "after-playback"
+          },
+          "on": "a",
+          "run": "steps.py:copy_detector_folder"
+        },
+        {
+          "on": "a",
+          "copy": "trace_jsonl",
+          "as": "trace-a-playback"
+        }
+      ]
+    },
+    {
+      "id": "r19-recopy",
+      "start": "playback",
+      "end": "playback",
+      "budget_min": 1,
+      "note": "frames-1.bin was copied while still open (Eden writes an open file through on close); recopy after the playback session ended.",
+      "steps": [
+        {
+          "run": "steps.py:copy_detector_folder",
+          "args": {
+            "name": "after-playback-closed"
+          },
+          "on": "a"
+        },
+        {
+          "shot": "now",
+          "on": "a"
+        }
+      ]
+    }
+  ]
+}

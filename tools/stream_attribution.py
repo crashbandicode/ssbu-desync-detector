@@ -157,6 +157,62 @@ def hypotheses(states, ours, theirs, max_steps):
     return found
 
 
+def explain(states, target, max_steps=8, pair_steps=4):
+    """Stream advances that turn `states` into a check value of `target`: the single-stream solutions
+    (1..max_steps draws) if any, else the two-stream ones (1..pair_steps each)."""
+    value = check_value(states)
+    if value == target:
+        return [()]
+    single = []
+    for k, state in enumerate(states):
+        w = state[3]
+        advanced = state
+        for n in range(1, max_steps + 1):
+            advanced = step(advanced)
+            if value ^ w ^ advanced[3] == target:
+                single.append(((k, n),))
+    if single:
+        return single
+    pairs = []
+    ws = [[s[3]] for s in states]
+    for k, state in enumerate(states):
+        advanced = state
+        for _ in range(pair_steps):
+            advanced = step(advanced)
+            ws[k].append(advanced[3])
+    for a in range(STREAMS):
+        for b in range(a + 1, STREAMS):
+            for na in range(1, pair_steps + 1):
+                for nb in range(1, pair_steps + 1):
+                    if value ^ ws[a][0] ^ ws[a][na] ^ ws[b][0] ^ ws[b][nb] == target:
+                        pairs.append(((a, na), (b, nb)))
+    return pairs
+
+
+def reconstruct(states, console, start, end, max_steps=8):
+    """Follow this console from `start` (its states equal the vanilla ones there) to `end`, one frame at a
+    time, applying the unique stream advance that gives its logged check value. Stops at the first frame
+    with no or several explanations. Returns (states at the last explained frame, that frame, lines)."""
+    lines = []
+    frame = start
+    for f in range(start + 1, end + 1):
+        if f not in console:
+            lines.append(f'frame {f}: not in the console frames; stop')
+            break
+        options = explain(states, console[f], max_steps)
+        if len(options) != 1:
+            lines.append(f'frame {f}: {"no" if not options else len(options)} explanation(s) for '
+                         f'0x{console[f]:08x}; stop')
+            break
+        for k, n in options[0]:
+            states = list(states)
+            states[k] = advance(states[k], n)
+        if options[0]:
+            lines.append(f'frame {f}: ' + ', '.join(f'{NAMES[k]} +{n}' for k, n in options[0]))
+        frame = f
+    return states, frame, lines
+
+
 def report(trace, frame, ours, theirs, playback=None, console=None, window=8, max_steps=8):
     lines = [f'traced frames: {len(trace)} ({min(trace)}..{max(trace)})' if trace else 'traced frames: 0']
     if playback:
@@ -195,12 +251,24 @@ def main(argv=None):
     parser.add_argument('--console-frames')
     parser.add_argument('--window', type=int, default=8)
     parser.add_argument('--max-steps', type=int, default=8)
+    parser.add_argument('--reconstruct', action='store_true',
+                        help='follow --console-frames from the last traced frame to --frame, then test theirs there')
     args = parser.parse_args(argv)
     trace = load_trace(args.trace)
     playback = load_frames(args.playback_frames, 2) if args.playback_frames else None
     console = load_frames(args.console_frames, 1) if args.console_frames else None
     for line in report(trace, args.frame, args.ours, args.theirs, playback, console, args.window, args.max_steps):
         print(line)
+    if args.reconstruct and trace and console:
+        start = max(trace)
+        states, reached, lines = reconstruct(trace[start][0], console, start, args.frame, args.max_steps)
+        print(f'reconstruction from traced frame {start}: reached {reached}')
+        for line in lines:
+            print('  ' + line)
+        if reached == args.frame:
+            print(f'reconstructed value at {reached}: 0x{check_value(states):08x} (ours 0x{args.ours:08x})')
+            for option in explain(states, args.theirs, args.max_steps):
+                print('theirs explained by: ' + (', '.join(f'{NAMES[k]} +{n}' for k, n in option) or 'no change'))
     return 0 if trace else 1
 
 

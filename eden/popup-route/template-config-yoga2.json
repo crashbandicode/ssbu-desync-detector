@@ -1,0 +1,194 @@
+{
+  "owner": "Claude fa2f179b/popup-route",
+  "label": "template",
+  "host": "yoga",
+  "hostname": "yoga-ubuntu",
+  "ledger": "/tmp/deluxe-surface-1007/OWNER-COORDINATION.md",
+  "display_helper": {
+    "path": "/home/intpa/eden-nso-autolan/live-tools/display-rootful.ps1",
+    "sha256": "a930b7a6dcb6c7401afb8bbbb2c918ee9b09219a1cd64b4af862938c094e2cff"
+  },
+  "work_root": "/home/intpa/popup-route-work/template/work",
+  "state_dir": "/home/intpa/popup-route-work/template/state",
+  "pair_authorized": true,
+  "defer_load": true,
+  "runner": {
+    "path": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/runner.py",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "rows": {
+    "path": "/home/intpa/popup-route-work/template/rows.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "runtime": 5400,
+  "socket_cap": 90,
+  "load_cap": 180,
+  "stop_cap": 30,
+  "force_cap": 30,
+  "authorization": "Popup-route brief 2026-11-05 (primary OpenCode, operator order): second same-host LAN Online pair on the Yoga; a runs the release candidate, b the diag build with force_desync_frame=600 (Eden-only switch) so the game ends the match on its own desync path.",
+  "instances": [
+    {
+      "key": "a",
+      "display": ":116",
+      "source": "/home/intpa/trainingrooms-eden-lead-astra4/profiles/y",
+      "app": {
+        "path": "/home/intpa/Applications/Eden-GIF/20261104-f916cf4b8c68-unmapped-stop-fefd2b5f0cfc/Eden.AppImage",
+        "sha256": "fefd2b5f0cfcc5ed5426e7b0ce1d91fe25060024c861b8ff1dfc7814462ca4fd"
+      },
+      "game": "/home/intpa/Games/Roms/Switch/Super Smash Bros. Ultimate [01006A800016E000]+[v13.0.3+ 9DLC][US](nsw2u.com).xci",
+      "plugins": [
+        {
+          "path": "/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/artifacts/r3/release/libssbu_desync_detector.nro",
+          "sha256": "b5fa80f8aed12c8f7d2202c10f82a6e8cf7062a17148d410c3ea4aafa0606003"
+        },
+        {
+          "path": "/home/intpa/trainingrooms-eden-pkg6/nro/aid/libssbu_tile_cursor.nro",
+          "sha256": "b8313ca2e66a52f1bcfc4afc764df1b7cdc5aee7e194bdea671cea02746934bc"
+        }
+      ],
+      "files": [],
+      "sources": {
+        "detector_log": "user/sdmc/ultimate/ssbu-desync-detector/events.log",
+        "tile_log": "user/sdmc/ultimate/ssbu-tile-cursor/events.log"
+      },
+      "trace": {
+        "unmapped_access": "log",
+        "symbols": [
+          {
+            "module": "libssbu_desync_detector.nro",
+            "elf": "/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/artifacts/r3/release/libssbu_desync_detector.so"
+          }
+        ],
+        "points": [
+          {
+            "target": "main+0x37a2270",
+            "registers": [
+              "x0",
+              "x1",
+              "x2",
+              "x3",
+              "x30"
+            ],
+            "captures": [
+              {
+                "expression": "x1:400",
+                "type": "bytes"
+              }
+            ],
+            "condition": "[x1] == 0x6f006300200041",
+            "backtrace": true
+          },
+          {
+            "target": "main+0x377a250",
+            "registers": [
+              "x0",
+              "x19",
+              "x29",
+              "x30",
+              "sp"
+            ],
+            "captures": [
+              {
+                "expression": "sp+0x120:400",
+                "type": "bytes"
+              }
+            ],
+            "condition": "[sp+0x120] == 0x6f006300200041",
+            "backtrace": true
+          },
+          {
+            "target": "main+0x37ad8e8",
+            "registers": [
+              "x20",
+              "x29",
+              "sp"
+            ],
+            "captures": [
+              {
+                "expression": "sp+0x208",
+                "type": "u64"
+              },
+              {
+                "expression": "sp+0x210:400",
+                "type": "bytes"
+              }
+            ],
+            "condition": "[sp+0x210] == 0x6f006300200041",
+            "backtrace": true
+          },
+          {
+            "target": "main+0x1eef640",
+            "registers": [
+              "x0",
+              "x1",
+              "x2",
+              "x30"
+            ],
+            "captures": [
+              {
+                "expression": "x1",
+                "type": "c-string(96)"
+              },
+              {
+                "expression": "x2",
+                "type": "u64"
+              },
+              {
+                "expression": "x2+8",
+                "type": "u64"
+              }
+            ],
+            "backtrace": true
+          },
+          {
+            "target": "main+0x377a250",
+            "registers": [
+              "x0",
+              "x29",
+              "sp"
+            ],
+            "captures": [
+              {
+                "expression": "sp+0x120:400",
+                "type": "bytes"
+              }
+            ],
+            "condition": "[sp+0x1158] == 0x82469838",
+            "backtrace": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "b",
+      "display": ":117",
+      "source": "/home/intpa/trainingrooms-eden-lead-astra4/profiles/y",
+      "app": {
+        "path": "/home/intpa/Applications/Eden-GIF/20261104-f916cf4b8c68-unmapped-stop-fefd2b5f0cfc/Eden.AppImage",
+        "sha256": "fefd2b5f0cfcc5ed5426e7b0ce1d91fe25060024c861b8ff1dfc7814462ca4fd"
+      },
+      "game": "/home/intpa/Games/Roms/Switch/Super Smash Bros. Ultimate [01006A800016E000]+[v13.0.3+ 9DLC][US](nsw2u.com).xci",
+      "plugins": [
+        {
+          "path": "/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/artifacts/r3/diag/libssbu_desync_detector.nro",
+          "sha256": "012e8146b94db9b727ba537f6c4b94eaa15288ceaccaef65fe2b0bb41548aa80"
+        },
+        {
+          "path": "/home/intpa/trainingrooms-eden-pkg6/nro/aid/libssbu_tile_cursor.nro",
+          "sha256": "b8313ca2e66a52f1bcfc4afc764df1b7cdc5aee7e194bdea671cea02746934bc"
+        }
+      ],
+      "files": [
+        {
+          "path": "/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/artifacts/r3/diag-force-desync-600.txt",
+          "sha256": "3b3f90b76ffef2dce9ef74237fd420a86b5d90cefe18e67f5e87091c12c943de",
+          "to": "user/sdmc/ultimate/ssbu-desync-detector/diag.txt"
+        }
+      ],
+      "sources": {
+        "detector_log": "user/sdmc/ultimate/ssbu-desync-detector/events.log",
+        "tile_log": "user/sdmc/ultimate/ssbu-tile-cursor/events.log"
+      }
+    }
+  ]
+}

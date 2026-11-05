@@ -1,36 +1,38 @@
 {
   "game_id": "01006A800016E000",
   "start": "frontend-ready",
-  "about": "Popup route (2026-11-05): a same-host LAN Online pair, detector + tile cursor on both. Quickplay match, then instance b is paused so a's peer goes silent and a shows the communication-error pop-up. Trace points on a (config trace) show which text route carries it; the detector log shows communication_text with its route.",
+  "about": "Popup route, second boot (2026-11-05): a same-host LAN Online pair; a runs the release candidate with trace points, b the diag build with force_desync_frame=600, so both consoles record a mismatch at frame 600 and the game ends the match on its own desync path. Segments and references come from the first boot (rows-y01.json).",
   "setup": [
     {
-      "state": "LAN Online on, TLS off, both instances",
+      "state": "LAN Online on, TLS off",
       "via": "fixture",
-      "ref": "source profile trainingrooms-eden-lead-astra4/profiles/g qt-config.ini: lan_online=true, lan_online_tls=false"
+      "ref": "source profile trainingrooms-eden-lead-astra4/profiles/y qt-config.ini"
+    },
+    {
+      "state": "Forced desync at frame 600 on b",
+      "via": "fixture",
+      "ref": "files: diag.txt force_desync_frame=600 on b (diag build)"
     },
     {
       "state": "Title to main menu",
-      "via": "segment",
-      "ref": "library attract-cancel, gate library main"
-    },
-    {
-      "state": "Main menu to Online, Smash, Quickplay, Solo, CSS hand on a tile",
-      "via": "record",
-      "ref": "segments to-online, to-quickplay, to-css (recipes, recorded on a, played on b)"
-    },
-    {
-      "state": "Matched Quickplay session on both",
-      "via": "record",
-      "ref": "segment pick, gate matched (detector session line on a and b)"
-    },
-    {
-      "state": "Peer silent mid-match",
       "via": "hook",
-      "ref": "call game.pause on b"
+      "ref": "steps.py:to_main"
+    },
+    {
+      "state": "Main menu to a matched Quickplay session",
+      "via": "segment",
+      "ref": "to-online, to-quickplay, to-css, pick, ready (recorded in dd-popup-y01)"
     }
   ],
   "segments": {
     "attract-cancel": {
+      "file": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/library/segments/attract-cancel.edenmacro.json",
+      "sha256": "1b506dbfc689e79e8bfca69b74274ab674b91ac8359219a1a4c95faa81aae70f",
+      "cap": 30,
+      "start_gate": null,
+      "end_gate": "main",
+      "from_run": "p4r-shared",
+      "row": "nav00-attract-cancel",
       "library": "attract-cancel"
     },
     "to-online": {
@@ -52,7 +54,9 @@
           "hold": 150,
           "gap": 14
         }
-      ]
+      ],
+      "sha256": "d52590537267a9aa817e3d7e8969fde0d70e38ca93cf36a5ca616ba8d4678858",
+      "recorded": "2026-11-05T22:31:06Z"
     },
     "to-quickplay": {
       "file": "segments/to-quickplay.edenmacro.json",
@@ -68,7 +72,9 @@
           "hold": 150,
           "gap": 6
         }
-      ]
+      ],
+      "sha256": "4db24aee967ca0721918af0291deb53cbefdc07ce4485cf8d423401a5bc63acc",
+      "recorded": "2026-11-05T22:31:55Z"
     },
     "to-css": {
       "file": "segments/to-css.edenmacro.json",
@@ -84,7 +90,9 @@
           "hold": 150,
           "gap": 1.5
         }
-      ]
+      ],
+      "sha256": "df589d123449a453b70525e393591b2a95249bc8d55470402985236df774a4d5",
+      "recorded": "2026-11-05T22:32:44Z"
     },
     "pick": {
       "file": "segments/pick.edenmacro.json",
@@ -95,14 +103,154 @@
           "hold": 150,
           "gap": 3
         }
+      ],
+      "sha256": "aa7177b16f3c04163c79e3faac2cc3f5ba6ea52ab569c5a0d2d6c5e5acf7ca02",
+      "recorded": "2026-11-05T22:33:11Z"
+    },
+    "ready": {
+      "file": "segments/ready.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "buttons": "a",
+          "gap": 3,
+          "hold": 150
+        }
+      ],
+      "sha256": "a66184f087ac3841bbecd7198f2adbc20ffab73d18c1ba2a84edecc4027c7ede",
+      "recorded": "2026-11-05T22:39:09Z"
+    },
+    "ok": {
+      "file": "segments/ok.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "gap": 4,
+          "buttons": "a",
+          "hold": 150
+        }
+      ],
+      "sha256": "5a7b339ad93ed3b8dc5ab31e8e771ebd02aa73e8a1777d6beaa02da3f019175d",
+      "recorded": "2026-11-05T22:47:11Z"
+    },
+    "to-vault": {
+      "file": "segments/to-vault.edenmacro.json",
+      "cap": 30,
+      "recipe": [
+        {
+          "hold": 150,
+          "buttons": "right",
+          "gap": 1.0
+        },
+        {
+          "hold": 150,
+          "buttons": "a",
+          "gap": 6
+        }
       ]
+    },
+    "smash-to-quickplay": {
+      "file": "segments/smash-to-quickplay.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "hold": 150,
+          "buttons": "a",
+          "gap": 6
+        }
+      ],
+      "sha256": "c48fb0bcce639e2604675815007db52cee369b26eba1ad3551781169f5e0602b",
+      "recorded": "2026-11-05T22:49:56Z"
+    },
+    "back": {
+      "file": "segments/back.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "buttons": "b",
+          "gap": 4,
+          "hold": 150
+        }
+      ],
+      "sha256": "fd2a36026d064882a3bffee0735c9082e64cac87e39bb7c7de1177f4d3a5cde5",
+      "recorded": "2026-11-05T22:57:50Z"
+    },
+    "online-to-vault": {
+      "file": "segments/online-to-vault.edenmacro.json",
+      "cap": 30,
+      "recipe": [
+        {
+          "gap": 1.0,
+          "hold": 150,
+          "buttons": "up"
+        },
+        {
+          "gap": 6,
+          "hold": 150,
+          "buttons": "a"
+        }
+      ],
+      "sha256": "f738663b4660218a8a108d2b6c483805f0ece142eea8e3001e14f80fb1d046fc",
+      "recorded": "2026-11-05T22:58:39Z"
+    },
+    "to-replays": {
+      "file": "segments/to-replays.edenmacro.json",
+      "cap": 30,
+      "recipe": [
+        {
+          "buttons": "right",
+          "hold": 150,
+          "gap": 1.0
+        },
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 6
+        }
+      ],
+      "sha256": "212cae32caa6f867e45d650661a31b8764703fcc9589ade74dec0c5456f8a459",
+      "recorded": "2026-11-05T22:59:01Z"
+    },
+    "select": {
+      "file": "segments/select.edenmacro.json",
+      "cap": 30,
+      "recipe": [
+        {
+          "gap": 6,
+          "buttons": "a",
+          "hold": 150
+        }
+      ],
+      "sha256": "17ca6bcc8d1da8732255d8fccc0b9a2e58cbf1cf8fb1938a1baab75701f8c8c8",
+      "recorded": "2026-11-05T22:59:21Z"
     }
   },
   "gates": {
     "loaded": {
+      "kind": "status",
+      "expect": {
+        "running": true,
+        "loading_complete": true
+      },
+      "max_frame_age_ms": 1500,
+      "cap": 180,
+      "from_run": "p4s-shared",
       "library": "loaded"
     },
     "main": {
+      "kind": "image",
+      "reference": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/library/refs/main.png",
+      "sha256": "902628cebd8620847be44e41a826046740f495ca0dfa7e78d8482c43c0da1bdc",
+      "roi": [
+        150,
+        265,
+        450,
+        335
+      ],
+      "tolerance": 8,
+      "cap": 30,
+      "reference_is_roi": true,
+      "from_run": "lr-03",
       "library": "main",
       "recover": "attract-cancel"
     },
@@ -123,7 +271,9 @@
         45
       ],
       "acquire": true,
-      "cap": 40
+      "cap": 40,
+      "sha256": "2f4d98fd992d0bf622806cd7d3bd1442754940dd5d4296ce41dfee089bf3bcc9",
+      "acquired": "2026-11-05T22:31:12Z"
     },
     "quickplay-menu": {
       "kind": "image",
@@ -135,7 +285,9 @@
         45
       ],
       "acquire": true,
-      "cap": 40
+      "cap": 40,
+      "sha256": "4bf9d8236d2630faa734950587817c432e478e0b2d2b6396f2de6b7015ff070f",
+      "acquired": "2026-11-05T22:31:56Z"
     },
     "css-tile": {
       "kind": "log",
@@ -158,6 +310,115 @@
       "source": "detector_log",
       "pattern": "communication_text reason=\\w+ text_units=\\d+ route=\\w+",
       "cap": 240
+    },
+    "ready-banner": {
+      "kind": "image",
+      "reference": "refs/ready-banner.png",
+      "roi": [
+        200,
+        110,
+        600,
+        240
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "a70e14b154caa901a65a3d2f0dcac1d852a9635372103097dd67791b256900be",
+      "acquired": "2026-11-05T22:39:06Z"
+    },
+    "vault-menu": {
+      "kind": "image",
+      "reference": "refs/vault-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "a37b002d341e3bd6fc193614008a8950109662ce32c14d8d5edfb339f8edab6d",
+      "acquired": "2026-11-05T22:58:40Z"
+    },
+    "smash-online-menu": {
+      "kind": "image",
+      "reference": "refs/smash-online-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "65c79cde72778b301b37e25d2cdeaaa0a38b00f9af7a405ce6d8aab3d8721df0",
+      "acquired": "2026-11-05T22:49:49Z"
+    },
+    "main-online": {
+      "kind": "image",
+      "reference": "refs/main-online.png",
+      "roi": [
+        700,
+        520,
+        920,
+        590
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "c766dfd1d5be47fc0c53e74b861e15f3d58248fc2cdf601d61ad3bfacbe12b86",
+      "acquired": "2026-11-05T22:58:25Z"
+    },
+    "replays-menu": {
+      "kind": "image",
+      "reference": "refs/replays-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "0473bd9a725dd6e529720158fc1360b28f054ed897fa27a05642ea9086a3cb2a",
+      "acquired": "2026-11-05T22:59:01Z"
+    },
+    "replay-list": {
+      "kind": "image",
+      "reference": "refs/replay-list.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 40,
+      "sha256": "e8287f5b02a14790974f1f46140aa3769d1b81e84248d342e5e122c69882d5dc",
+      "acquired": "2026-11-05T22:59:22Z"
+    },
+    "playback-start": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "session slot=\\d+ kind=playback",
+      "cap": 90
+    },
+    "playback-end": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "kind=playback slot=\\d+ frame=(43[5-9]\\d|4[4-9]\\d\\d|[5-9]\\d{3}|\\d{5})|frame_gap kind=playback|playback_mismatch",
+      "cap": 300
+    },
+    "installed-diag": {
+      "kind": "log",
+      "source": "detector_log",
+      "whole_file": true,
+      "cap": 120,
+      "pattern": "plugin=ssbu-desync-detector/0\\.2\\.0 telemetry=1 hooks=lockstep,playback dialog=installed text_routes=args,plain diag_force_desync_frame=600 heap_allocations=0"
+    },
+    "desync-text": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "communication_text reason=\\w+ text_units=\\d+ route=\\w+",
+      "cap": 150
     }
   },
   "rows": [
@@ -168,50 +429,47 @@
       "budget_min": 4,
       "steps": [
         {
-          "call": "game.load",
+          "on": "a",
+          "job_cap": 180,
           "params": {
             "path": "@game"
           },
-          "job_cap": 180,
-          "on": "a"
+          "call": "game.load"
         },
         {
-          "call": "game.load",
+          "on": "b",
+          "job_cap": 180,
           "params": {
             "path": "@game"
           },
-          "job_cap": 180,
-          "on": "b"
+          "call": "game.load"
         },
         {
-          "gate": "loaded",
-          "on": "a"
+          "on": "a",
+          "gate": "loaded"
         },
         {
-          "gate": "loaded",
-          "on": "b"
+          "on": "b",
+          "gate": "loaded"
         },
         {
-          "gate": "installed",
-          "on": "a"
+          "on": "a",
+          "gate": "installed"
         },
         {
-          "gate": "installed",
-          "on": "b"
+          "on": "b",
+          "gate": "installed-diag"
         },
         {
-          "copy": "detector_log",
+          "on": "a",
           "as": "install-a",
-          "on": "a"
+          "copy": "detector_log"
         },
         {
-          "copy": "detector_log",
+          "on": "b",
           "as": "install-b",
-          "on": "b"
+          "copy": "detector_log"
         }
-      ],
-      "evidence": [
-        "install lines with dialog=installed text_routes=args,plain heap_allocations=0 on both"
       ]
     },
     {
@@ -221,40 +479,31 @@
       "budget_min": 2,
       "steps": [
         {
-          "gate": "loaded",
-          "on": "a"
+          "on": "a",
+          "gate": "loaded"
         },
         {
-          "gate": "loaded",
-          "on": "b"
+          "on": "b",
+          "gate": "loaded"
         },
         {
-          "play": "attract-cancel",
-          "on": "a"
+          "on": "a",
+          "run": "steps.py:to_main",
+          "check": true
         },
         {
-          "play": "attract-cancel",
-          "on": "b"
+          "on": "b",
+          "run": "steps.py:to_main",
+          "check": true
         },
         {
-          "gate": "main",
-          "on": "a"
+          "on": "a",
+          "gate": "main"
         },
         {
-          "gate": "main",
-          "on": "b"
-        },
-        {
-          "shot": "main",
-          "on": "a"
-        },
-        {
-          "shot": "main",
-          "on": "b"
+          "on": "b",
+          "gate": "main"
         }
-      ],
-      "evidence": [
-        "main menu on both"
       ]
     },
     {
@@ -264,40 +513,29 @@
       "budget_min": 2,
       "steps": [
         {
-          "gate": "main",
-          "on": "a"
+          "on": "a",
+          "gate": "main"
         },
         {
-          "play": "to-online",
-          "on": "a"
+          "on": "a",
+          "play": "to-online"
         },
         {
-          "gate": "online-menu",
-          "on": "a"
+          "on": "a",
+          "gate": "online-menu"
         },
         {
-          "gate": "main",
-          "on": "b"
+          "on": "b",
+          "gate": "main"
         },
         {
-          "play": "to-online",
-          "on": "b"
+          "on": "b",
+          "play": "to-online"
         },
         {
-          "gate": "online-menu",
-          "on": "b"
-        },
-        {
-          "shot": "online",
-          "on": "a"
-        },
-        {
-          "shot": "online",
-          "on": "b"
+          "on": "b",
+          "gate": "online-menu"
         }
-      ],
-      "evidence": [
-        "Online menu header on both"
       ]
     },
     {
@@ -307,91 +545,88 @@
       "budget_min": 2,
       "steps": [
         {
-          "gate": "online-menu",
-          "on": "a"
+          "on": "a",
+          "gate": "online-menu"
         },
         {
-          "play": "to-quickplay",
-          "on": "a"
+          "on": "a",
+          "play": "to-quickplay"
         },
         {
-          "gate": "quickplay-menu",
-          "on": "a"
+          "on": "a",
+          "gate": "quickplay-menu"
         },
         {
-          "gate": "online-menu",
-          "on": "b"
+          "on": "b",
+          "gate": "online-menu"
         },
         {
-          "play": "to-quickplay",
-          "on": "b"
+          "on": "b",
+          "play": "to-quickplay"
         },
         {
-          "gate": "quickplay-menu",
-          "on": "b"
-        },
-        {
-          "shot": "quickplay",
-          "on": "a"
-        },
-        {
-          "shot": "quickplay",
-          "on": "b"
+          "on": "b",
+          "gate": "quickplay-menu"
         }
-      ],
-      "evidence": [
-        "Quickplay menu header on both"
       ]
     },
     {
-      "id": "r04-css-match",
+      "id": "r04-match",
       "start": "quickplay-menu",
       "end": "matched",
-      "budget_min": 8,
+      "budget_min": 6,
       "steps": [
         {
-          "gate": "quickplay-menu",
-          "on": "a"
+          "on": "a",
+          "gate": "quickplay-menu"
         },
         {
-          "play": "to-css",
-          "on": "a"
+          "on": "a",
+          "play": "to-css"
         },
         {
-          "gate": "css-tile",
-          "on": "a"
+          "on": "a",
+          "gate": "css-tile"
         },
         {
-          "gate": "quickplay-menu",
-          "on": "b"
+          "on": "a",
+          "play": "pick"
         },
         {
-          "play": "to-css",
-          "on": "b"
+          "on": "a",
+          "gate": "ready-banner"
         },
         {
-          "gate": "css-tile",
-          "on": "b"
+          "on": "a",
+          "play": "ready"
         },
         {
-          "shot": "css",
-          "on": "a"
+          "on": "b",
+          "gate": "quickplay-menu"
         },
         {
-          "shot": "css",
-          "on": "b"
+          "on": "b",
+          "play": "to-css"
         },
         {
-          "play": "pick",
-          "on": "a"
+          "on": "b",
+          "gate": "css-tile"
         },
         {
-          "play": "pick",
-          "on": "b"
+          "on": "b",
+          "play": "pick"
         },
         {
-          "gate": "matched",
-          "on": "a"
+          "on": "b",
+          "gate": "ready-banner"
+        },
+        {
+          "on": "b",
+          "play": "ready"
+        },
+        {
+          "on": "a",
+          "gate": "matched"
         },
         {
           "shot": "match",
@@ -401,104 +636,71 @@
           "shot": "match",
           "on": "b"
         }
-      ],
-      "evidence": [
-        "tile cursor settled on a CSS tile on both",
-        "detector session kind=online on both: the Quickplay match is running"
       ]
     },
     {
-      "id": "r06-drop",
+      "id": "r05-desync-popup",
       "start": "matched",
       "end": "popup",
-      "budget_min": 5,
+      "budget_min": 4,
       "steps": [
         {
-          "wait_ms": 8000,
-          "reason": "let the match run a few seconds before the peer goes silent"
+          "on": "a",
+          "gate": "desync-text"
         },
         {
-          "call": "game.pause",
-          "on": "b"
-        },
-        {
-          "gate": "popup-text",
-          "on": "a"
-        },
-        {
-          "wait_ms": 2500,
-          "reason": "the pop-up animates in after its text is set"
+          "reason": "the pop-up animates in after its text is set",
+          "wait_ms": 2500
         },
         {
           "shot": "popup",
           "on": "a"
         },
         {
-          "wait_ms": 3000,
-          "reason": "a second frame of the settled pop-up"
+          "shot": "popup",
+          "on": "b"
+        },
+        {
+          "reason": "settled",
+          "wait_ms": 3000
         },
         {
           "shot": "popup-settled",
           "on": "a"
         },
         {
-          "copy": "detector_log",
+          "shot": "popup-settled",
+          "on": "b"
+        },
+        {
+          "on": "a",
           "as": "events-a",
-          "on": "a"
+          "copy": "detector_log"
         },
         {
-          "copy": "trace_jsonl",
+          "on": "b",
+          "as": "events-b",
+          "copy": "detector_log"
+        },
+        {
+          "on": "a",
           "as": "trace-a",
-          "on": "a"
+          "copy": "trace_jsonl"
         },
         {
+          "on": "a",
           "run": "steps.py:copy_detector_folder",
           "args": {
             "name": "after-popup"
-          },
-          "on": "a"
-        }
-      ],
-      "evidence": [
-        "pop-up screenshot on a",
-        "communication_text with its route on a",
-        "trace records of the text route on a"
-      ]
-    },
-    {
-      "id": "r07-peer",
-      "start": "popup",
-      "end": "peer-resumed",
-      "budget_min": 2,
-      "steps": [
-        {
-          "call": "game.resume",
-          "on": "b"
+          }
         },
         {
-          "wait_ms": 20000,
-          "reason": "b resumes into a session the other side already ended"
-        },
-        {
-          "shot": "peer",
-          "on": "b"
-        },
-        {
-          "copy": "detector_log",
-          "as": "events-b",
-          "on": "b"
-        },
-        {
+          "on": "b",
           "run": "steps.py:copy_detector_folder",
           "args": {
-            "name": "after-resume"
-          },
-          "on": "b"
+            "name": "after-popup"
+          }
         }
-      ],
-      "evidence": [
-        "what b shows after resuming",
-        "b's detector log"
       ]
     }
   ]
