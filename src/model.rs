@@ -376,6 +376,18 @@ pub const EV_LINK: u8 = 4;
 pub const EV_PLAYBACK_MISMATCH: u8 = 5;
 pub const EV_SESSION: u8 = 6;
 pub const EV_RECORDING: u8 = 7;
+/// A native communication-error text was prepared, not proof of a rendered frame.
+pub const EV_COMMUNICATION_TEXT: u8 = 8;
+/// Frames stopped arriving; an observation of coverage, never a native end.
+pub const EV_FRAME_GAP: u8 = 9;
+pub const COMMUNICATION_REASONS: [&str; 6] = [
+    "desync",
+    "local_link",
+    "local_status",
+    "peer_ended",
+    "timeout",
+    "unknown",
+];
 
 /// Why a match recording was not saved (`EV_RECORDING` with no bytes).
 pub const RECORDING_REASONS: [&str; 9] = [
@@ -475,6 +487,18 @@ pub fn describe(event: &RawEvent, out: &mut impl fmt::Write) -> fmt::Result {
             a >> 32 & 0xff,
             b >> 32
         ),
+        EV_COMMUNICATION_TEXT => write!(
+            out,
+            "communication_text reason={} text_units={b}",
+            COMMUNICATION_REASONS.get(a as usize).copied().unwrap_or("unknown")
+        ),
+        EV_FRAME_GAP => write!(
+            out,
+            "frame_gap kind={} slot={} frame={} last_frame_tick={b}",
+            if a >> 32 & 0xff == u64::from(KIND_PLAYBACK) { "playback" } else { "online" },
+            a >> 40 & 0xff,
+            a & 0xffff_ffff
+        ),
         EV_PLAYBACK_MISMATCH => write!(
             out,
             "playback_mismatch frame={} computed=0x{:08x} recorded=0x{:08x}",
@@ -516,6 +540,56 @@ pub fn describe(event: &RawEvent, out: &mut impl fmt::Write) -> fmt::Result {
         ),
         other => write!(out, "unknown code={other} a=0x{a:x} b=0x{b:x}"),
     }
+}
+
+/// A bounded writer-thread sample. Raw network enums are retained rather
+/// than interpreted as a particular dock, adapter or router failure.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Telemetry {
+    pub tick: u64,
+    pub boot_tick: u64,
+    pub unix_seconds: u64,
+    pub clock_initialized: bool,
+    pub clock_result: u32,
+    pub clock_query_ticks: u64,
+    pub poll: u64,
+    pub poll_gap_ticks: u64,
+    pub link: (u64, u64),
+    pub active: bool,
+    pub kind: u32,
+    pub slot: usize,
+    pub frame: u32,
+    pub last_frame_tick: u64,
+    pub event_drops: u64,
+    pub frame_drops: u64,
+    pub evidence_losses: u64,
+    pub heap_allocations: u64,
+}
+
+/// Wall-clock seconds are usable only when initialized and result is zero.
+/// The tick span bounds where the seconds-resolution clock was read; it
+/// cannot establish that the console clock agrees with the router clock.
+pub fn describe_telemetry(sample: &Telemetry, out: &mut impl fmt::Write) -> fmt::Result {
+    let ticks_per_ms = 19_200;
+    let frame_age = if sample.last_frame_tick == 0 {
+        u64::MAX
+    } else {
+        sample.tick.saturating_sub(sample.last_frame_tick) / ticks_per_ms
+    };
+    let kind = match sample.kind {
+        KIND_ONLINE => "online",
+        KIND_PLAYBACK => "playback",
+        _ => "idle",
+    };
+    write!(out,
+        "{} telemetry boot_tick={} unix_s={} clock_initialized={} clock_result=0x{:x} clock_query_ticks={} poll={} poll_gap_ms={} result=0x{:x} interface={} strength={} state={} active={} kind={} slot={} frame={} frame_age_ms={} event_drops={} frame_drops={} evidence_losses={} heap_allocations={}",
+        sample.tick, sample.boot_tick, sample.unix_seconds,
+        u8::from(sample.clock_initialized), sample.clock_result, sample.clock_query_ticks,
+        sample.poll, sample.poll_gap_ticks / ticks_per_ms,
+        sample.link.1 & 0xffff_ffff, sample.link.0 & 0xff,
+        sample.link.0 >> 32 & 0xff, sample.link.1 >> 32,
+        u8::from(sample.active), kind, sample.slot, sample.frame, frame_age,
+        sample.event_drops, sample.frame_drops, sample.evidence_losses, sample.heap_allocations)
 }
 
 /// `EV_RECORDING` payload: a saved file (`bytes > 0`) or a failure reason.
@@ -736,6 +810,93 @@ mod tests {
         assert!(core::str::from_utf8(end.as_bytes())
             .unwrap()
             .starts_with("9 sync_end trigger=desync kind=2 frame=1132 local=0 desync_seen=1"));
+    }
+
+    #[test]
+    fn telemetry_retains_clock_status_network_values_and_capture_losses() {
+        let sample = Telemetry {
+            tick: 192_000_000,
+            boot_tick: 42,
+            unix_seconds: 1_793_721_600,
+            clock_initialized: true,
+            clock_result: 0x1234,
+            clock_query_ticks: 96,
+            poll: 20,
+            poll_gap_ticks: 9_600_000,
+            link: (2 | 77 << 32, 0x3456 | 3 << 32),
+            active: true,
+            kind: KIND_ONLINE,
+            slot: 2,
+            frame: 601,
+            last_frame_tick: 182_400_000,
+            event_drops: 4,
+            frame_drops: 17,
+            evidence_losses: 1,
+            heap_allocations: 0,
+        };
+        let mut line = Line::<768>::new();
+        describe_telemetry(&sample, &mut line).unwrap();
+        let text = core::str::from_utf8(line.as_bytes()).unwrap();
+        for field in [
+            "clock_initialized=1 clock_result=0x1234 clock_query_ticks=96",
+            "poll=20 poll_gap_ms=500",
+            "result=0x3456 interface=2 strength=77 state=3",
+            "active=1 kind=online slot=2 frame=601 frame_age_ms=500",
+            "event_drops=4 frame_drops=17 evidence_losses=1 heap_allocations=0",
+        ] {
+            assert!(text.contains(field), "missing {field}");
+        }
+    }
+
+    #[test]
+    fn maximum_telemetry_line_fits_without_silently_losing_its_tail() {
+        let sample = Telemetry {
+            tick: u64::MAX,
+            boot_tick: u64::MAX,
+            unix_seconds: u64::MAX,
+            clock_initialized: false,
+            clock_result: u32::MAX,
+            clock_query_ticks: u64::MAX,
+            poll: u64::MAX,
+            poll_gap_ticks: u64::MAX,
+            link: (u64::MAX, u64::MAX),
+            active: true,
+            kind: KIND_PLAYBACK,
+            slot: usize::MAX,
+            frame: u32::MAX,
+            last_frame_tick: 0,
+            event_drops: u64::MAX,
+            frame_drops: u64::MAX,
+            evidence_losses: u64::MAX,
+            heap_allocations: u64::MAX,
+        };
+        let mut full = String::new();
+        describe_telemetry(&sample, &mut full).unwrap();
+        full.push('\n');
+        let mut bounded = Line::<768>::new();
+        describe_telemetry(&sample, &mut bounded).unwrap();
+        bounded.write_char('\n').unwrap();
+        assert_eq!(bounded.as_bytes(), full.as_bytes());
+        assert!(full.contains("frame_age_ms=18446744073709551615"));
+    }
+
+    #[test]
+    fn frame_gap_preserves_session_context_without_claiming_an_end() {
+        let mut line = Line::<192>::new();
+        describe(
+            &RawEvent {
+                tick: 9,
+                code: EV_FRAME_GAP,
+                a: 601 | u64::from(KIND_PLAYBACK) << 32 | 3 << 40,
+                b: 7,
+            },
+            &mut line,
+        )
+        .unwrap();
+        assert_eq!(
+            line.as_bytes(),
+            b"9 frame_gap kind=playback slot=3 frame=601 last_frame_tick=7"
+        );
     }
 
     fn online(frame: u32, rng: u32) -> FrameRecord {

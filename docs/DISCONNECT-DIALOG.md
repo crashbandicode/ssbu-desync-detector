@@ -1,0 +1,310 @@
+# Disconnect reasons and incident evidence
+
+2026-11-03. Local candidate on `feat/disconnect-reason-dialog`.
+The pre-telemetry UI candidate booted in Eden and its hook installed;
+the target communication-error dialog remains unverified. The newer
+telemetry candidate has host/build checks only. It was installed as a local
+development candidate on2026-11-03; it is not a published release and its
+next console run is pending.
+
+## Next-run telemetry candidate
+
+The next-run source adds bounded snapshots every five seconds and after
+network changes, session-end/mismatch/peer-end events and reason-text
+preparation. Existing hooks are unchanged. The existing writer thread
+reads NIFM and the console's system clock; it adds no network traffic or
+simulation writes. Events still have their own original ticks. A snapshot
+after an error records its observation time, not an inferred cause time.
+
+Each `telemetry` row retains raw network result/interface/strength/state,
+actual poll interval and count, session/slot/frame activity, console Posix
+seconds with SDK status/query duration, and cumulative event/frame-ring
+overwrite, evidence-contention and Rust heap-allocation counts. Zero
+counters describe these measured losses; they cannot prove complete
+capture of every possible native error route. A `frame_gap` means that no
+frames were observed for five seconds; it supplies no native end or reason.
+`active=0` means the writer is outside its frame episode; kind/slot/frame
+can still identify the preceding episode. `frame_age_ms=18446744073709551615`
+means no frame tick has been observed. Polling remains nominally500ms;
+urgent events request another sample on the existing100ms writer loop.
+
+Telemetry uses fixed stack buffers, no per-frame formatting, and the
+existing1MiB log rotation with one previous file. The formatter's maximum
+integer test verifies its768-byte buffer retains the complete row and
+newline. Clock samples are usable only with initialized clock/result0.
+The parser reports UTC windows including second truncation and SDK query
+duration and exposes discontinuities. These are console-clock estimates,
+not independently measured synchronization with the router.
+
+After a recurrence, retain the whole detector folder, especially both
+logs and the matching frame/match files, then run:
+
+```text
+python3 -I -B tools/summarize_disconnect.py <events.log> --previous <events.previous.log>
+```
+
+Omit `--previous` if that file is absent. `boot_tick` scopes a rotated log
+even when its install marker is gone; the output says where coverage
+begins. Existing TM-log correlation remains a labelled fallback when no
+usable direct clock sample exists. Never treat a post-error undock as the
+cause of an earlier message. Current incident-time hardware attribution
+remains unresolved. Build/check receipts and the final candidate identity
+are retained in the work folder's telemetry manifest and reports.
+
+The built telemetry candidate is SHA256
+`02488cdc8e0e4ab2a3da0cd83cc2b2e363ef00c6e714227599675b7da43e82ee`.
+Release and diag NROs are byte-identical:53,248bytes,135,168bytes resident
+(132KiB). The candidate was installed overDBI at16:13:34Z on2026-11-03.
+The original detector29067bb6 has a verified on-card/local rollback copy;
+all17plugin and3protected-file readbacks passed, with the other16plugins
+and all protected settings unchanged. Receipts and independent verification:
+`/home/intpa/ssbu-cpu-pilot-work/switch/install-telemetry-20261103-1611/`.
+The operator controls DBI/card connections; no agent mount or connection
+operation was used.37files/2707535B of pre-update logs/crash evidence were
+saved under`work/switch/card-20261103-1611` before replacement. Three new Rust
+cases cover raw telemetry/loss retention, maximum complete line length
+and gap semantics; twelve parser tests cover scope, rotation, clocks and
+capture data. Final build/check logs use the `telemetry-` prefix. No new
+Eden test was launched for telemetry; the next physical run is pending.
+
+The requested behavior is to explain the evidence behind a real disconnect
+in its existing dialog. Recorded mismatch, a local network-status fault,
+an explicit abnormal peer-end message, a timeout and an unknown cause have
+different meanings. Silence alone cannot establish that the other player
+quit. Network status cannot identify a faulty dock, cable, access point or
+router.
+
+The classifier uses fixed storage and static messages. Existing hooks feed
+facts before the writer drains logs. Online session identity and frame
+restart delimit the evidence; playback and normal endings suppress it.
+A nonblocking guard protects the UI snapshot. A missed mutation makes the
+episode unusable. A later undock or network change cannot explain a dialog
+already shown. No synthetic dialog is opened on a frame gap. The operator
+broadened the scope to communication-error messages generally: with no
+usable online evidence, append Unknown instead of borrowing an old cause.
+The link and verdict windows are each 30 seconds, the peer-end grace is
+one second, and admitted event skew is 250 ms. These are conservative
+implementation defaults, not timing limits measured on the console.
+
+The new candidate appends to the caller's formatted UTF-16 stack buffer
+at the formatter return `37ad8e8`, before its native UI setter. It preserves every original
+code unit and support code, appends a complete reason only when it fits,
+and changes the native length accordingly. It retains no pointers and
+shares no temporary text between calls. All six ABI/instruction guards
+must match before the one hook is installed. Its aligned far patch
+relocates MOV/ADD/LDP/LDP; the near patch relocates just MOV. Neither
+contains a branch or call. Saved LR selects the specific caller, its
+guarded frame identifies the buffer, and w20 supplies the native count.
+`docs/HOOKS.md` records the sites and dated card scan.
+
+The first candidate at `37a272c` was rejected after static inspection of
+Skyline's patch writer: that unaligned site requires five instructions for
+a far jump and would relocate the following native call. Its earlier
+four-instruction claim was incorrect. No rejected build was installed.
+
+The current filter recognizes the English communication/connection-error
+sentences, tolerating line breaks and native text tags. Other translations,
+other text-setting routes and system error applets have not been shown to
+pass this site. They are not claimed as covered. Real error coverage and
+text layout remain runtime acceptance gates. A `communication_text` event
+records preparation of an augmented message, not its rendered appearance.
+
+## Retained incident
+
+Raw inputs are in
+`/home/intpa/ssbu-cpu-pilot-work/switch/card-20261103-1220`.
+The card detector was 0.2.0, SHA256
+`29067bb63fd2721ed577f613088614a365804c9ac7101c4ad4ff8b8df3cd23a8`.
+
+Reproduce the bounded log summary from the repository root:
+
+```text
+python3 -I -B -m unittest discover -s tools -p test_summarize_disconnect.py
+python3 -I -B tools/summarize_disconnect.py <events.log> --tm <practice-diagnostics.log> --frames <frames-0.bin>
+```
+
+The original five Python cases remain in the twelve-case suite. The incident output is retained as
+`/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/incident-summary.json`.
+It finds 17 sessions after the latest install marker, no recorded mismatch,
+and no `sync_end` or `peer_end` for the last session. Its frame file has
+3,374 contiguous records, numbered 0–3373. Connection-status observations
+alternate between Wi-Fi and Ethernet, with nonzero NIFM results in between.
+This establishes observed network-state changes, with incomplete end
+telemetry; it does not establish the cause or exclude a missed desync path.
+
+[libnx's NIFM header](https://github.com/switchbrew/libnx/blob/master/nx/include/switch/services/nifm.h)
+defines type 1 as Wi-Fi, type 2 as Ethernet and status 4 as connected.
+States 0–3 are named unknown. The recorded `0xd46e` decodes numerically as
+module 110, description 106. The header's note literally names `0xd46ed`;
+interpreting that spelling as a typo is an inference, so this report does
+not assign an authoritative physical meaning to the recorded error.
+
+The router's retained logs show no corresponding reboot or WAN/LAN
+interface teardown. That does not exclude a brief forwarding fault,
+access-point problem, switch-port fault, MoCA/mesh issue or upstream loss.
+The independent audit proposed a clock offset and MAC pairing that align
+several DHCP exchanges with the Switch transitions. Initially both were
+fitted to the same observations. The operator has now independently read
+the Switch's wired MAC as `00:E0:4C:69:2D:AD`, confirming that the router's
+configured `bazzite` entry is this dock connection. Its repeated DHCP
+discovery/request exchanges therefore belong to the Switch's wired path,
+rather than an unrelated Bazzite client. The clock offset is still fitted,
+not independently measured; those exchanges could be the same incident
+or an earlier connection event. They do not identify a faulty component.
+
+The original path was HB0609 Ethernet -> Archer BE670 -> MS305E -> R6S;
+the Archer satellite uses Ethernet over MoCA. The console stayed docked
+until after the error. Around the incident this dock was used only with
+the Switch, not the Bazzite device. The subsequently checked wired MAC
+establishes its identity; the saved router label did not do so by itself.
+It has since been moved directly to MS305E. This
+comparison keeps the dock and router but bypasses Archer forwarding for
+the console; a shared LAN loop could still affect both paths. Useful next
+evidence is the correct port's retained link/error history and an
+independently checked Switch/router clock offset.
+
+The operator identified MS305E management at `192.168.0.134` and the dock
+on port 2. A read-only capture at 13:31:47Z, after the cable move, reports
+port 2 at 1 Gbps, the R6S uplink at 2.5 Gbps and the AP uplink at 2.5 Gbps.
+All five ports report zero CRC packets. Loop prevention is enabled and
+power saving is disabled. These are current/cumulative observations;
+their reset time and the former port-2 device are unknown, and they do not
+establish incident-time link continuity or exclude congestion, packet
+drops, USB/power interruption or an Archer forwarding fault. No settings
+were changed; the diagnostic login was closed. Whitelisted receipt:
+`/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/netgear-readonly.json`.
+The system-status endpoint returned HTTP 500 while port reads succeeded;
+that endpoint failure is not evidence of the game's earlier disconnect.
+
+For a recurrence, keep the current direct-MS305E path and capture router
+events, port-2 carrier/speed/error counters and Switch telemetry against
+one checked clock, filtering the confirmed wired MAC. Sample current port state
+during play: this switch exposes no established historical carrier log,
+and before/after counters alone can miss a brief link loss. Do not clear
+counters or change several settings/components together. A stable Ethernet
+carrier would still not exclude a dock's USB-side interruption. If the
+direct path remains stable, that is a useful comparison with the Archer
+path, not proof that the Archer or MoCA caused the earlier incident.
+
+Static review rejected the first native UI candidate: `0x16bb5b0` is a
+shared `ErrorResultVariant` display helper. Filtering its `ShowError`
+return addresses would relabel unrelated errors. No hook was installed.
+The callback registered at `0x22cafc4` and the `NetworkErrorMessage`
+catalog were also shared paths, not a proven text seam. Raw review:
+`/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/native-review.md`.
+
+```mermaid
+flowchart LR
+    Console[Nintendo Switch] --> Dock[HB0609 dock]
+    Dock -->|previous path| Archer[Archer BE670]
+    Dock -->|current path| Netgear[MS305E]
+    Archer --> Netgear
+    Netgear --> Router[NanoPi R6S]
+    Router --> ONT[Fiber ONT]
+    Archer --> MoCA[MoCA / coax]
+    MoCA --> Satellite[Archer satellite]
+```
+
+## Validation still required
+
+The final host suite, all-target Clippy with warnings denied,
+no-default-features build, Switch release and diag builds pass without
+warnings. Raw logs are `v2-{test,clippy,no-default,release,diag}.log`
+in the work folder. The host counting-allocator test covers classifier and
+reason append; the final ARM64 callback has no allocation calls in its
+inspected path (`ui-callback-v2-disasm.log`). This is not runtime
+allocation evidence for the installed card set.
+
+Historical pre-telemetry release candidate SHA256:
+`7d5d489f2b6e993700681def8aa23eefdfa1925cde60cc3198e301788439f3bc`.
+Its file size is 53,248 bytes, with 135,168 bytes resident (132 KiB),
+reported from the NRO header in `v2-size.log` using playbook
+`tools/build/nro_size.py`. The declared
+diag feature currently adds no code, so its NRO is byte-identical; both
+builds and symbol-bearing ELF files are retained separately under
+`/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/artifacts/ui-candidate`.
+
+Independent Grok4.7xhigh review (`ui-v2-review.md` in the work folder)
+found no static blocker for this formatter caller. Its scope excluded
+acceptance of the final built NRO; the primary verified that retained
+artifact against its source receipt and inspected its ARM64 callback.
+The historical UI review wrappers and worker watchers are stopped. Full primary
+checklist, including failures and unperformed checks:
+[COMPLIANCE-DISCONNECT.md](COMPLIANCE-DISCONNECT.md).
+
+## Eden observational run
+
+The operator reauthorized Eden validation. Playbook
+`03e23218af1eaa007793bbc21718bd594f4999c7` was pulled and read. The
+unchanged candidate above ran on the Ally as `live-pilot2-dialog-e07`,
+15:08:54–15:21:39Z. No plugin rebuild, guest-state injection, networking
+configuration change, hosting or card installation was used.
+
+The Windows Job enforced 8 GiB and 5,400 seconds, and volume was verified
+as zero before loading 13.0.5. The current loader log identifies main
+build `21450C647B8C5940ED5B68218EA128FD3C5D597D` at `0x80ebf000`.
+The install line reports `dialog=installed heap_allocations=0`. That is
+install-time evidence only.
+
+A one-shot guest tracepoint at the observed main base plus `0x37a272c`
+(`0x8466172c`) requested x0/x19/x20/sp/pc/pstate and 4,096 bytes from
+sp. Ordinary menu navigation entered Online. It displayed “Connecting to
+the Internet,” followed by system applet error `2306-0520`, “Unable to
+connect to the Internet.” Closing it returned to the main menu. The
+tracepoint stayed armed through those actions and was cancelled without
+a hit. No `communication_text` event was emitted. This route did not
+exercise the selected caller; it neither proves nor disproves the
+candidate's behavior for the game's disconnect message. The emulator's
+Internet error does not explain the physical Switch incident.
+
+The retained current game log contains zero Unmapped, panic, abort or
+crash matches. It also contains 2,482 file-permission-denied messages;
+their cause was not established, so this is not a clean full-runtime
+acceptance result. The game stopped before the frontend's stale-modal
+cleanup required terminating its owned Job (exit 137). Peak Job memory
+was 7,257,878,528 bytes. The original 603-file profile was restored and
+independently hash-verified; the finished clone was removed.
+
+Raw evidence and reproducible verification:
+`/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/runtime-evidence.tar.gz`,
+`runtime-evidence-manifest.json` and `runtime-evidence-verified.json`.
+All 23 archived files were SHA-verified. Archive SHA256:
+`f9e758a2c0c1d6d40b54035ffa91c9bab5a791bb2bce06291de98b322c41074a`.
+The trace plan, individual control receipts and restoration records are
+in that work folder. Desktop screenshots are private work evidence;
+they are not publication assets.
+
+Real disconnect UI coverage/layout and allocation, replay A/B and
+two-console online behavior remain unverified. A natural session that
+reaches the communication-error dialog is still needed. The operator
+chose next-run telemetry with bounded host/build checks. No source has
+been pushed or versioned for release. The explicit subsequent operator
+install order was completed with verified readbacks as recorded above.
+
+## Boot-crash capture at installation
+
+The only new Smash report compared with the earlier12:20capture listing
+is `01793721463_01006a800016e000.log` (2026-11-03 15:57Z). It reports
+DataAbort on`BCATCacheStorage`, PC`nnSdk+0x50a380` (`memset+0x10`) and
+LR`main+0x36fa0f4`. The November2 11:43Z report`01793619837` has the
+same thread, LR and return addresses, with PC eight bytes earlier in
+`memset`. Both use main build`21450C647B8C5940`. The earlier report lacks
+`memory_guard` in its module list; the new report includes it. This
+signature was therefore present before memory-guard was loaded, and the
+guard does not establish a fix for this different crash path.
+
+The saved November2 15:02Z render-dispatch DataAbort and15:42Z UserBreak
+are different signatures. The prior immediate`FreeMemoryPages` abort
+conclusion does not classify the newer BCAT crash. Current memory-guard
+logs contain one refusal`0x803` and later installs, but no direct timestamp
+join to this new crash. No responsible plugin, bad cache file, allocator
+root cause or hardware component has been established. The new crash
+occurred with old detector29067bb6 before telemetry02488cdc was installed.
+
+Local raw evidence: `work/switch/card-20261103-1611/` under the CPU-pilot
+work directory. Detailed comparison: `boot-crashes-1611-review.md` in
+`work/disconnect-dialog/`. The module-name check is reproducible with
+`work/switch/crash-modules.py <report>...`. Four fatal-error binaries
+were retained without decoding; three saved text fatal reports identify
+`ovlloader`, not Smash. No cache clear, mod removal, settings change or
+crash workaround was performed.

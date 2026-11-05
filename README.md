@@ -6,7 +6,7 @@
 
 Skyline plugin for Super Smash Bros. Ultimate 13.0.5 that records what ended
 an online match and keeps the evidence a vanilla replay needs to show which
-console desynced. Read-only: safe to leave on online.
+console desynced. It observes match state without changing the simulation.
 
 ![Referee](docs/media/referee.gif)
 
@@ -61,6 +61,23 @@ and has been on that Switch since 2026-10-31, installed over DBI and read
 back.
 
 ## More
+
+The unreleased development branch appends an evidence-based reason to English
+communication-error messages while retaining their original text and codes.
+It distinguishes recorded desyncs, local network status, an abnormal peer end,
+timeout and unknown. It does not infer a deliberate quit from silence or
+identify faulty hardware. Host tests and compilation are separate from the
+pending in-game UI/online checks. It is not in the published0.2.0release;
+the local telemetry candidate was installed on the operator's card on
+2026-11-03 with SHA prefix02488cdc.
+See [the dated work report](docs/DISCONNECT-DIALOG.md).
+
+The development candidate also records five-second telemetry and snapshots
+around network changes and disconnect events. These include the console
+clock, polling intervals, frame activity and capture-loss counters. Keep
+both `events.log` and `events.previous.log` after a recurrence; the summary
+tool can read them together. This helps correlate an incident with router
+records, but does not by itself identify a faulty network component.
 
 - [docs/EDEN-PROOF.md](docs/EDEN-PROOF.md): the forced-desync test in Eden.
   It has not run through a real desync on a Switch yet.

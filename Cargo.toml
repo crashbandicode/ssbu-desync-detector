@@ -14,6 +14,10 @@ titleid = "01006A800016E000"
 # integration test and the examples include `src/model.rs` by path instead.
 crate-type = ["cdylib"]
 
+[features]
+default = []
+diag = []
+
 [target.'cfg(target_os = "switch")'.dependencies]
 skyline = "=0.6.0"
 

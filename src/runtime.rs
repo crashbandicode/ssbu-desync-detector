@@ -1,24 +1,28 @@
 //! Switch half: version check, guarded inline hooks, two static rings and one
-//! writer thread. The hooks only read registers and memory the game is reading
-//! at that instruction, then store integers into the rings. The writer thread
+//! writer thread. Simulation hooks observe the game's own reads. The UI hook
+//! appends a reason to the native text buffer; it writes no battle state.
+//! Events go to the rings. The writer thread
 //! runs on a static stack and owns every file, opened through `nn::fs` with
 //! paths built on the stack. Nothing allocates: the rings are static, buffers
 //! live on the stack, and the counting allocator below reports the plugin's
-//! heap allocations (expected 0) in the install and `session` lines.
+//! heap allocations (expected 0) in install, session and telemetry lines.
+use crate::dialog;
+use crate::disconnect::Reason;
+use crate::evidence::Evidence;
 use crate::model::{
     self, describe, minimal_outer, pack_desync, pack_recording, pack_sync_end, recorder, xor_words,
-    EndState, FrameRecord, Line, RawEvent, Site, CFMK_BYTES, CFMK_PAYLOAD_LEN, CFMK_RECORDS,
-    DESYNC, EV_DESYNC, EV_LINK, EV_PEER_ABORT, EV_PLAYBACK_MISMATCH, EV_RECORDING, EV_SESSION,
-    EV_SYNC_END, FRAME_CHECK, KIND_ONLINE, KIND_PLAYBACK, OUTER_BYTES, PEER_ABORT, PLAYBACK_CHECK,
-    RECORDING_NORMAL_END, RECORD_BYTES, REPLAY_FRAME_INDEX, REPLAY_PLAYER, RNG_CHECK_WORD,
-    RNG_MANAGER, RNG_STATE_STRIDE, SYNC_END, TAG_CFMK, TAG_FRAM,
+    EndState, FrameRecord, Line, RawEvent, Site, Telemetry, CFMK_BYTES, CFMK_PAYLOAD_LEN,
+    CFMK_RECORDS, DESYNC, EV_DESYNC, EV_LINK, EV_PEER_ABORT, EV_PLAYBACK_MISMATCH, EV_RECORDING,
+    EV_SESSION, EV_SYNC_END, FRAME_CHECK, KIND_ONLINE, KIND_PLAYBACK, OUTER_BYTES, PEER_ABORT,
+    PLAYBACK_CHECK, RECORDING_NORMAL_END, RECORD_BYTES, REPLAY_FRAME_INDEX, REPLAY_PLAYER,
+    RNG_CHECK_WORD, RNG_MANAGER, RNG_STATE_STRIDE, SYNC_END, TAG_CFMK, TAG_FRAM,
 };
 use core::cell::UnsafeCell;
 use core::fmt::Write as _;
 use skyline::hooks::{getRegionAddress, InlineCtx, Region};
 use skyline::nn;
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 
 const DATA_DIR: &str = "sd:/ultimate/ssbu-desync-detector";
 /// Files `frames-0.bin` .. `frames-7.bin` (and `match-N.bin`), reused in rotation.
@@ -36,6 +40,7 @@ const OUTER_WAIT_TICKS: u64 = 5 * TICKS_PER_SECOND;
 const COMMIT_WAIT_TICKS: u64 = 60 * TICKS_PER_SECOND;
 const WRITER_STACK: usize = 32 * 1024;
 const EVENTS_LOG_LIMIT: i64 = 1 << 20;
+const TELEMETRY_INTERVAL_TICKS: u64 = 5 * TICKS_PER_SECOND;
 const OPEN_READ: i32 = 1;
 const OPEN_WRITE_APPEND: i32 = 2 | 4;
 
@@ -95,6 +100,9 @@ static DESYNC_ROWS: AtomicU64 = AtomicU64::new(0);
 static DESYNC_WINDOW: AtomicU64 = AtomicU64::new(0);
 static PLAYBACK_MISMATCHES: AtomicU64 = AtomicU64::new(0);
 static TEXT_BASE: AtomicU64 = AtomicU64::new(0);
+static DISCONNECT_EVIDENCE: Evidence = Evidence::new();
+static BOOT_TICK: AtomicU64 = AtomicU64::new(0);
+static TELEMETRY_REQUEST: AtomicBool = AtomicBool::new(false);
 
 /// The writer thread's object and stack, static so no heap is involved.
 #[repr(C, align(4096))]
@@ -117,13 +125,88 @@ fn tick() -> u64 {
 }
 
 fn push_event(code: u8, a: u64, b: u64) {
+    publish_event(&RawEvent {
+        tick: tick(),
+        code,
+        a,
+        b,
+    });
+}
+
+fn push_session_event(session: u64, code: u8, a: u64, b: u64) {
+    let event = RawEvent {
+        tick: tick(),
+        code,
+        a,
+        b,
+    };
+    DISCONNECT_EVIDENCE.event(session, &event);
+    publish_event(&event);
+}
+
+fn publish_event(event: &RawEvent) {
+    if matches!(
+        event.code,
+        EV_SYNC_END | EV_DESYNC | EV_PEER_ABORT | model::EV_COMMUNICATION_TEXT
+    ) {
+        TELEMETRY_REQUEST.store(true, Ordering::Release);
+    }
     let index = EVENT_HEAD.fetch_add(1, Ordering::AcqRel);
     let slot = &EVENTS[(index % EVENT_RING as u64) as usize];
-    slot.tick.store(tick(), Ordering::Relaxed);
-    slot.code.store(u64::from(code), Ordering::Relaxed);
-    slot.a.store(a, Ordering::Relaxed);
-    slot.b.store(b, Ordering::Relaxed);
+    slot.tick.store(event.tick, Ordering::Relaxed);
+    slot.code.store(u64::from(event.code), Ordering::Relaxed);
+    slot.a.store(event.a, Ordering::Relaxed);
+    slot.b.store(event.b, Ordering::Relaxed);
     slot.seq.store(index + 1, Ordering::Release);
+}
+
+fn disconnect_reason(now: u64) -> Reason {
+    // The operator wants every actual communication-error message covered,
+    // including errors outside a match. Unusable session evidence says Unknown.
+    DISCONNECT_EVIDENCE.reason(now).unwrap_or(Reason::Unknown)
+}
+
+/// Formatter epilogue, before MOV w0,w20. Its guarded frame contains the
+/// caller's return address; only the zeroed-buffer caller is accepted.
+/// The aligned far patch relocates MOV/ADD/LDP/LDP, no branch or call.
+#[skyline::hook(offset = dialog::FORMAT_RETURN_OFFSET, inline)]
+unsafe fn desync_detector_communication_text(ctx: &mut InlineCtx) {
+    let len = ctx.registers[20].w() as usize;
+    if len >= dialog::CAPACITY {
+        return;
+    }
+    let Some((address, saved_lr)) = dialog::frame_addresses(ctx.sp.x(), ctx.registers[29].x())
+    else {
+        return;
+    };
+    let Some(caller) = TEXT_BASE
+        .load(Ordering::Relaxed)
+        .checked_add(dialog::CALLER_RETURN_OFFSET)
+    else {
+        return;
+    };
+    if read_u64(saved_lr) != caller {
+        return;
+    }
+    // SAFETY: installation verifies stack allocation, memset size, formatter
+    // capacity/count/terminator and this consumer. Buffer belongs to this call.
+    let buffer = core::slice::from_raw_parts_mut(address as *mut u16, dialog::CAPACITY);
+    if !dialog::is_communication_error(&buffer[..len]) {
+        return;
+    }
+    let now = tick();
+    let reason = disconnect_reason(now);
+    if let Some(new_len) = dialog::append_reason(buffer, len, reason) {
+        // Relocated MOV w0,w20 supplies the return value; the epilogue then
+        // restores the caller's original x20 from its saved stack slot.
+        ctx.registers[20].set_w(new_len as u32);
+        publish_event(&RawEvent {
+            tick: now,
+            code: model::EV_COMMUNICATION_TEXT,
+            a: reason.code(),
+            b: new_len as u64,
+        });
+    }
 }
 
 /// Single producer: the game thread that runs the lockstep or the playback.
@@ -183,8 +266,10 @@ unsafe fn desync_detector_frame_check(ctx: &InlineCtx) {
     if record < 0x10000 {
         return;
     }
+    let frame = u32::from(read_u16(record));
+    DISCONNECT_EVIDENCE.frame(tick(), KIND_ONLINE, ctx.registers[19].x(), frame);
     push_frame(FrameRecord {
-        frame: u32::from(read_u16(record)),
+        frame,
         rng: ctx.registers[11].w(),
         position: 0,
         recorded: 0,
@@ -195,13 +280,6 @@ unsafe fn desync_detector_frame_check(ctx: &InlineCtx) {
 #[skyline::hook(offset = model::DESYNC_OFFSET, inline)]
 unsafe fn desync_detector_desync(ctx: &InlineCtx) {
     let now = tick();
-    if now.wrapping_sub(DESYNC_WINDOW.load(Ordering::Acquire)) > 10 * TICKS_PER_SECOND {
-        DESYNC_WINDOW.store(now, Ordering::Release);
-        DESYNC_ROWS.store(0, Ordering::Release);
-    }
-    if DESYNC_ROWS.fetch_add(1, Ordering::AcqRel) >= 8 {
-        return;
-    }
     let record = ctx.registers[2].x();
     let frame = if record < 0x10000 {
         0
@@ -214,7 +292,21 @@ unsafe fn desync_detector_desync(ctx: &InlineCtx) {
         (ctx.registers[1].w() & 0xff) as u8,
         frame,
     );
-    push_event(EV_DESYNC, a, b);
+    let event = RawEvent {
+        tick: now,
+        code: EV_DESYNC,
+        a,
+        b,
+    };
+    // Rate limiting affects only the log; every actual mismatch is evidence.
+    DISCONNECT_EVIDENCE.event(ctx.registers[0].x(), &event);
+    if now.wrapping_sub(DESYNC_WINDOW.load(Ordering::Acquire)) > 10 * TICKS_PER_SECOND {
+        DESYNC_WINDOW.store(now, Ordering::Release);
+        DESYNC_ROWS.store(0, Ordering::Release);
+    }
+    if DESYNC_ROWS.fetch_add(1, Ordering::AcqRel) < 8 {
+        publish_event(&event);
+    }
 }
 
 #[skyline::hook(offset = model::SYNC_END_OFFSET, inline)]
@@ -233,7 +325,7 @@ unsafe fn desync_detector_sync_end(ctx: &InlineCtx) {
     let caller = ctx.registers[30]
         .x()
         .wrapping_sub(TEXT_BASE.load(Ordering::Relaxed));
-    push_event(EV_SYNC_END, a, caller);
+    push_session_event(session, EV_SYNC_END, a, caller);
 }
 
 #[skyline::hook(offset = model::PEER_ABORT_OFFSET, inline)]
@@ -247,7 +339,8 @@ unsafe fn desync_detector_peer_end(ctx: &InlineCtx) {
         read_u8(message + 1),
         read_u8(message + 2),
     ]));
-    push_event(
+    push_session_event(
+        session,
         EV_PEER_ABORT,
         sender | reason << 8,
         u64::from(read_u16(session + 0x2)),
@@ -267,6 +360,7 @@ unsafe fn desync_detector_playback_check(ctx: &InlineCtx) {
         read_u32(player + REPLAY_FRAME_INDEX as u64).wrapping_sub(1)
     };
     let (computed, recorded) = (ctx.registers[8].w(), read_u32(expected + 4));
+    DISCONNECT_EVIDENCE.frame(tick(), KIND_PLAYBACK, game, index);
     push_frame(FrameRecord {
         frame: index,
         rng: rng_check_now(),
@@ -576,6 +670,12 @@ struct Writer {
     frame_tail: usize,
     event_tail: u64,
     link: (u64, u64),
+    last_poll_tick: u64,
+    poll_gap_ticks: u64,
+    poll_count: u64,
+    last_telemetry: u64,
+    event_drops: u64,
+    frame_drops: u64,
     pending: Option<Pending>,
 }
 
@@ -596,6 +696,12 @@ impl Writer {
             frame_tail: 0,
             event_tail: 0,
             link: (u64::MAX, u64::MAX),
+            last_poll_tick: 0,
+            poll_gap_ticks: 0,
+            poll_count: 0,
+            last_telemetry: 0,
+            event_drops: 0,
+            frame_drops: 0,
             pending: None,
         })
     }
@@ -643,6 +749,10 @@ impl Writer {
     fn drain_frames(&mut self) {
         let head = FRAME_HEAD.load(Ordering::Acquire);
         if head.saturating_sub(self.frame_tail) > FRAME_RING {
+            self.frame_drops = self
+                .frame_drops
+                .saturating_add((head - self.frame_tail - FRAME_RING) as u64);
+            TELEMETRY_REQUEST.store(true, Ordering::Release);
             self.frame_tail = head - FRAME_RING;
         }
         let mut chunk = [0u8; RECORD_BYTES * 64];
@@ -676,6 +786,14 @@ impl Writer {
         self.write_frames(&chunk[..used]);
         let last = LAST_FRAME_TICK.load(Ordering::Relaxed);
         if self.in_session && tick().saturating_sub(last) > SESSION_GAP_TICKS {
+            push_event(
+                model::EV_FRAME_GAP,
+                u64::from(self.last_frame)
+                    | u64::from(self.session_kind) << 32
+                    | (self.slot as u64) << 40,
+                last,
+            );
+            TELEMETRY_REQUEST.store(true, Ordering::Release);
             self.in_session = false;
             self.frames = None;
             if let Some(pending) = self.pending.as_mut().filter(|p| p.ended == 0) {
@@ -687,6 +805,10 @@ impl Writer {
     fn drain_events(&mut self) {
         let head = EVENT_HEAD.load(Ordering::Acquire);
         if head.saturating_sub(self.event_tail) > EVENT_RING as u64 {
+            self.event_drops = self
+                .event_drops
+                .saturating_add(head - self.event_tail - EVENT_RING as u64);
+            TELEMETRY_REQUEST.store(true, Ordering::Release);
             self.event_tail = head - EVENT_RING as u64;
         }
         let mut line = Line::<192>::new();
@@ -735,16 +857,71 @@ impl Writer {
         }
     }
 
-    fn poll_link(&mut self) {
+    fn poll_link(&mut self) -> bool {
         let mut raw = [0u8; 12];
         let result = unsafe { GetInternetConnectionStatus(raw.as_mut_ptr()) };
         let a = u64::from(raw[0]) | u64::from(raw[4]) << 32;
         let b = u64::from(result)
             | u64::from(u32::from_le_bytes([raw[8], raw[9], raw[10], raw[11]])) << 32;
+        let now = tick();
+        self.poll_gap_ticks = if self.last_poll_tick == 0 {
+            0
+        } else {
+            now.saturating_sub(self.last_poll_tick)
+        };
+        self.last_poll_tick = now;
+        self.poll_count = self.poll_count.saturating_add(1);
+        DISCONNECT_EVIDENCE.link(now, a, b);
         if (a, b) != self.link {
             self.link = (a, b);
-            push_event(EV_LINK, a, b);
+            publish_event(&RawEvent {
+                tick: now,
+                code: EV_LINK,
+                a,
+                b,
+            });
+            return true;
         }
+        false
+    }
+
+    /// Runs only on the existing writer. Five-second heartbeats plus event
+    /// snapshots preserve coverage and a console-clock anchor across gaps.
+    fn telemetry(&mut self) {
+        let start = tick();
+        let initialized = unsafe { nn::time::IsInitialized() };
+        let mut posix = nn::time::PosixTime { time: 0 };
+        let result = if initialized {
+            nn::time::StandardUserSystemClock::GetCurrentTime(&mut posix)
+        } else {
+            0
+        };
+        let span = tick().saturating_sub(start);
+        let sample = Telemetry {
+            tick: start,
+            boot_tick: BOOT_TICK.load(Ordering::Relaxed),
+            unix_seconds: posix.time,
+            clock_initialized: initialized,
+            clock_result: result,
+            clock_query_ticks: span,
+            poll: self.poll_count,
+            poll_gap_ticks: self.poll_gap_ticks,
+            link: self.link,
+            active: self.in_session,
+            kind: self.session_kind,
+            slot: self.slot,
+            frame: self.last_frame,
+            last_frame_tick: LAST_FRAME_TICK.load(Ordering::Relaxed),
+            event_drops: self.event_drops,
+            frame_drops: self.frame_drops,
+            evidence_losses: DISCONNECT_EVIDENCE.losses(),
+            heap_allocations: HEAP_ALLOCATIONS.load(Ordering::Relaxed),
+        };
+        let mut line = Line::<768>::new();
+        let _ = model::describe_telemetry(&sample, &mut line);
+        let _ = line.write_char('\n');
+        append_log(line.as_bytes());
+        self.last_telemetry = start;
     }
 
     /// Advances the pending recording; drops it once it is saved or lost.
@@ -942,11 +1119,16 @@ impl Writer {
                 })
             };
             self.drain_frames();
-            if iteration.is_multiple_of(5) {
-                self.poll_link();
-            }
+            let urgent = TELEMETRY_REQUEST.swap(false, Ordering::AcqRel);
+            let changed = (iteration.is_multiple_of(5) || urgent) && self.poll_link();
             self.poll_pending();
             self.drain_events();
+            if urgent
+                || changed
+                || tick().saturating_sub(self.last_telemetry) >= TELEMETRY_INTERVAL_TICKS
+            {
+                self.telemetry();
+            }
             if iteration.is_multiple_of(10) {
                 if let Some(frames) = self.frames.as_ref() {
                     frames.flush();
@@ -1001,7 +1183,7 @@ fn version_is_supported() -> bool {
 }
 
 /// Appends the install line to `events.log` and the Skyline log.
-fn report_install(report: &mut Line<256>) {
+fn report_install(report: &mut Line<384>) {
     let _ = write!(
         report,
         " heap_allocations={}",
@@ -1019,11 +1201,13 @@ fn report_install(report: &mut Line<256>) {
 
 #[skyline::main(name = "ssbu-desync-detector")]
 pub fn main() {
-    let mut report = Line::<256>::new();
+    let started = tick();
+    BOOT_TICK.store(started, Ordering::Relaxed);
+    let mut report = Line::<384>::new();
     let _ = write!(
         report,
-        "{} plugin=ssbu-desync-detector/{}",
-        tick(),
+        "{} plugin=ssbu-desync-detector/{} telemetry=1",
+        started,
         env!("CARGO_PKG_VERSION")
     );
     if !version_is_supported() {
@@ -1051,6 +1235,17 @@ pub fn main() {
     if unsafe { guard_matches(&PLAYBACK_CHECK) } {
         skyline::install_hook!(desync_detector_playback_check);
         let _ = write!(report, "{}playback", if lockstep { "," } else { "" });
+    }
+    let mut dialog_ready = true;
+    for site in dialog::GUARDS {
+        if !unsafe { guard_matches(site) } {
+            dialog_ready = false;
+            let _ = write!(report, " dialog_guard_failed={}", site.name);
+        }
+    }
+    if dialog_ready {
+        skyline::install_hook!(desync_detector_communication_text);
+        let _ = write!(report, " dialog=installed");
     }
     // The writer appends to the same log, so it starts only after this line
     // (and the folder) exist.

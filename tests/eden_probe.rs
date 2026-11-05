@@ -9,9 +9,7 @@
 #[allow(dead_code)]
 mod model;
 
-use model::{
-    referee, FrameRecord, RefereeReport, Verdict, KIND_ONLINE, KIND_PLAYBACK,
-};
+use model::{referee, FrameRecord, RefereeReport, Verdict, KIND_ONLINE, KIND_PLAYBACK};
 
 const FRAME: u32 = 1128;
 /// The values each console compared at frame 1128 (both `events.log`s).
