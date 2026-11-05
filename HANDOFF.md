@@ -1,28 +1,28 @@
-# Popup-route worker — 2026-11-05 (current; everything below is history)
+# Popup-route worker — 2026-11-05 23:50Z (current; everything below is history)
 
-Brief: /home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route-brief-20261105.md.
-Worker Claude Opus 5.5 xhigh (claude-opus-5-5), session fa2f179b; watcher
-/tmp/claude-watch-fa2f179b (pid in its status.txt), reap before yielding.
-Playbook read at 0f0f533 (operator-pending files left alone). Worktree
-/home/intpa/ssbu-desync-detector-popup, branch feat/disconnect-popup-route:
-316f18d baseline (inherited uncommitted work), 3c6489a plain route.
-Work folder: /home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/.
+Brief: /home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route-brief-20261105.md. Worker
+claude-opus-5-5/xhigh, session fa2f179b (watcher /tmp/claude-watch-fa2f179b, stopped at hand-back).
+Playbook 0f0f533. Branch feat/disconnect-popup-route (worktree /home/intpa/ssbu-desync-detector-popup):
+316f18d baseline (inherited), 3c6489a plain route, 8f1ce70 diag forced desync + tools, 77e48f0 docs.
+Work folder: /home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/ (evidence/, gates/,
+artifacts/r3/, compliance-resolved-r3.md, taskb-*.log).
 
-Found statically: the pop-up body (.1eef640, from pop-up dispatch .32f1cc4)
-sets a sentence without arguments through .377a120 -> plain formatter
-.37ae170 -> setter .37a2270; the old hook only covers the argument route
-(.37a2660 -> .37ab750). New hook .377a250 (mov w2,w0, 8-aligned, setter call
-not relocated), 4 guards, route-guards.log (existing 6 guards still match;
-no branch into either relocated span). Card scan card-scan-20261105.log:
-no plugin at the new sites; ARCropolis calls .377a120 (no patch).
-Gates r2 (gates/r2-*.log): test 131 pass, clippy -D warnings, no-default,
-release, diag all exit 0. Release = diag NRO sha256 680bc561aaa2b976...,
-57344 B, resident 139264 (136 KiB); artifacts/r2/.
+Route: pop-up body .1eef640 (from dispatch .32f1cc8) sets a sentence without arguments through
+.377a120 -> .37ae170 -> setter .37a2270. New hook .377a250 (Route `plain`), 4 guards; the old route
+(`args`, .37ad8e8) unchanged. Release r3 b5fa80f8 (57344 B, 136 KiB), diag r3 012e8146 (adds
+force_desync_frame from diag.txt; release has no diag strings).
+Eden (Yoga): dd-popup-y01 22:27-23:08Z, dd-popup-y03 23:30-23:38Z, both released clean.
+y03: forced desync at frame 600 on b -> both consoles showed "A connection error has occurred." +
+"Reason: Desync detected. ..." and logged communication_text reason=desync text_units=102 route=plain;
+trace: pop_sync_error, no args, .377a250, setter got 102 units. Consoles clean, unmapped total 0.
+Task B (y01 replay of card match-0.bin): vanilla equals this console's check 0-4151, positions not
+reproduced at 4151 -> referee "this console left vanilla"; first checked difference: one extra `sound`
+draw on the other console at 4348. Cause of the position divergence not established.
 
-Live 21:41Z: queue2 (bg, popup-route/queue-up2.ps1, log queue2.log) waits for a gap on the Surface (run /home/intpa/eden-runs/dd-popup-01 there) or the Yoga (run /home/intpa/eden-runs/dd-popup-y01), then eden_test.py up once. Both hosts busy with other owners. Next after Up: et.ps1 -Mode run (Surface) or eden_test.py run (Yoga); Task B Vault rows recorded in-boot; always down.
-
-Open: Eden pair proof (route trace + pop-up screenshot + communication_text
-route=plain), Task B replay of card match-0.bin. No push/install/card.
+Not done: args route never ran in Eden; no clean session after the pop-up; card-plugin replay A/B
+(next test: same replay with the card's plugin set and mods, then bisect). No push/install/card.
+Surface leftovers: /home/intpa/popup-route-work (inputs, scripts), /home/intpa/eden-runs/dd-popup-01
+(created, never up).
 # Disconnect-reason candidate — 2026-11-03
 
 FINAL18:21Z read-only capture complete:140files15,201,850B in work/switch/
