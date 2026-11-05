@@ -21,8 +21,74 @@ Branch `feat/disconnect-popup-route` adds a second route, `plain`, hooked at
 one hook body (`append_in_frame`) and the same reason, filter and append
 rules. Install line: `dialog=installed text_routes=args,plain`; event:
 `communication_text … route=plain`. Sites, guards and the card scan:
-[HOOKS.md](HOOKS.md). Build `680bc561` (57,344 bytes, 136 KiB resident);
-host tests, clippy, no-default-features, release and diag builds pass.
+[HOOKS.md](HOOKS.md). Release build `b5fa80f8` (57,344 bytes, 136 KiB
+resident); host tests, clippy, no-default-features, release and diag builds
+pass.
+
+Eden, Yoga, same-host LAN Online pair, Eden `fefd2b5f`, detector and tile
+cursor only (runs in `/home/intpa/eden-runs/`):
+
+- `dd-popup-y01` (build `680bc561`): Quickplay matches; the pop-ups that
+  appeared ("You have been disconnected due to inactivity.", "When playing
+  online, please refrain from unsporting behavior…") went through the pop-up
+  body `.1eef640` (labels `pop_online_penalty_leaving`,
+  `pop_online_penalty_disturbance_warning`, argument vector empty) and the
+  `plain` site `.377a250` with FP = SP+0x1150. A peer whose emulation was
+  paused and resumed showed the system's own error applet (2306-0332), which
+  no plugin text hook reaches.
+- `dd-popup-y03`: a ran release `b5fa80f8`, b the diag build `012e8146` with
+  `force_desync_frame=600` (an Eden-only switch that stores b's frame-600
+  check value with its low bit flipped; simulation untouched). Both logged
+  `desync frame=600`, `sync_end trigger=desync … caller=0x16d6b08` (the
+  Switch's caller) and `communication_text reason=desync text_units=102
+  route=plain`, and both showed the orange-and-white pop-up "A connection
+  error has occurred." followed by "Reason: Desync detected. The consoles
+  stopped agreeing on the match." On a, trace points recorded the label
+  `pop_sync_error` with no arguments at `.1eef640`, the 32-unit text at
+  `.377a250` (called from `.1eef838`, dispatch `.32f1cc8`), and the setter
+  `.37a2270` receiving the same buffer (SP+0x120) with 102 units and the
+  reason. The argument route's point did not fire. Consoles: no panic,
+  abort, crash or Unmapped line; a's unmapped-access total 0.
+
+The argument route (`.37ad8e8`) installed in both boots and passes the host
+tests; no pop-up with arguments and a communication-error sentence appeared,
+so it did not run in Eden.
+
+## 2026-11-05: the 15:32:57 desync, replayed
+
+The card's `match-0.bin` (Quickplay (Elite), Mr. Game & Watch and Fox, a
+stage with hazards on) was played from the Vault in Eden (run `dd-popup-y01`, Eden
+`fefd2b5f`, Yoga) with only this detector (`680bc561`) and the tile cursor:
+no other plugin, no ARCropolis, no mods. A trace point on the playback
+check recorded the nine RNG streams every frame.
+
+```text
+cargo run --example referee -- <card detector folder> 0 <playback detector folder> 1
+python3 -I -B tools/stream_attribution.py <trace.jsonl> --frame 4348 --ours 0x7774d5d0 --theirs 0x9985577d \
+    --playback-frames <playback frames-1.bin> --console-frames <card frames-0.bin> --reconstruct
+```
+
+- The unmodded playback reproduced this console's online check value on
+  every frame 0–4151 (4,152 of 4,152). At frame 4151 the game could not
+  reproduce this console's recorded positions (`playback_mismatch
+  frame=4151 computed=0xa417d4d4 recorded=0x613d0d23`) and stopped. Referee
+  verdict: this console left vanilla. The traced streams' XOR equals the
+  detector's playback value on all 4,152 frames.
+- From 4151 to the desync, this console's logged values are explained
+  uniquely by two `sound` draws (frames 4311 and 4314) and reproduce its
+  4348 value `0x7774d5d0`. The other console's `0x9985577d` is this state
+  with one more `sound` draw: the first checked difference between the two
+  consoles is one extra `sound` draw on the other console at frame 4348.
+
+Established: with the same inputs, this console's simulated positions
+differed from an unmodded game's by frame 4151 while the checked RNG still
+agreed; 197 frames later one `sound` draw differed between the consoles
+(the stream behind launch voices and `PLAY_SEQUENCE` variants,
+[WHAT-IS-CHECKED](WHAT-IS-CHECKED.md)). Not established: what changed this
+console's positions. The card held 18 plugins at the time (the 2026-11-05
+06:45 copy) and ARCropolis with whatever is in `ultimate/mods`, which the
+capture does not include. Deciding it takes the same replay in Eden with
+the card's plugin set and mods, then bisecting.
 
 ## 2026-11-03
 

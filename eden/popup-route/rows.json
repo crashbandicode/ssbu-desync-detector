@@ -702,6 +702,36 @@
           }
         }
       ]
+    },
+    {
+      "id": "r06-look",
+      "start": "popup",
+      "end": "after-popup",
+      "budget_min": 1,
+      "steps": [
+        {
+          "wait_ms": 8000,
+          "reason": "after the pop-up closes"
+        },
+        {
+          "on": "a",
+          "shot": "after-popup"
+        },
+        {
+          "on": "b",
+          "shot": "after-popup"
+        },
+        {
+          "on": "a",
+          "as": "events-a-after",
+          "copy": "detector_log"
+        },
+        {
+          "on": "b",
+          "as": "events-b-after",
+          "copy": "detector_log"
+        }
+      ]
     }
   ]
 }
