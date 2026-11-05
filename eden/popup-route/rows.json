@@ -1,0 +1,505 @@
+{
+  "game_id": "01006A800016E000",
+  "start": "frontend-ready",
+  "about": "Popup route (2026-11-05): a same-host LAN Online pair, detector + tile cursor on both. Quickplay match, then instance b is paused so a's peer goes silent and a shows the communication-error pop-up. Trace points on a (config trace) show which text route carries it; the detector log shows communication_text with its route.",
+  "setup": [
+    {
+      "state": "LAN Online on, TLS off, both instances",
+      "via": "fixture",
+      "ref": "source profile trainingrooms-eden-lead-astra4/profiles/g qt-config.ini: lan_online=true, lan_online_tls=false"
+    },
+    {
+      "state": "Title to main menu",
+      "via": "segment",
+      "ref": "library attract-cancel, gate library main"
+    },
+    {
+      "state": "Main menu to Online, Smash, Quickplay, Solo, CSS hand on a tile",
+      "via": "record",
+      "ref": "segments to-online, to-quickplay, to-css (recipes, recorded on a, played on b)"
+    },
+    {
+      "state": "Matched Quickplay session on both",
+      "via": "record",
+      "ref": "segment pick, gate matched (detector session line on a and b)"
+    },
+    {
+      "state": "Peer silent mid-match",
+      "via": "hook",
+      "ref": "call game.pause on b"
+    }
+  ],
+  "segments": {
+    "attract-cancel": {
+      "library": "attract-cancel"
+    },
+    "to-online": {
+      "file": "segments/to-online.edenmacro.json",
+      "cap": 60,
+      "recipe": [
+        {
+          "buttons": "down",
+          "hold": 150,
+          "gap": 0.9
+        },
+        {
+          "buttons": "right",
+          "hold": 150,
+          "gap": 1.2
+        },
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 14
+        }
+      ]
+    },
+    "to-quickplay": {
+      "file": "segments/to-quickplay.edenmacro.json",
+      "cap": 40,
+      "recipe": [
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 7
+        },
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 6
+        }
+      ]
+    },
+    "to-css": {
+      "file": "segments/to-css.edenmacro.json",
+      "cap": 60,
+      "recipe": [
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 20
+        },
+        {
+          "buttons": "lstick,up",
+          "hold": 150,
+          "gap": 1.5
+        }
+      ]
+    },
+    "pick": {
+      "file": "segments/pick.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 3
+        }
+      ]
+    }
+  },
+  "gates": {
+    "loaded": {
+      "library": "loaded"
+    },
+    "main": {
+      "library": "main",
+      "recover": "attract-cancel"
+    },
+    "installed": {
+      "kind": "log",
+      "source": "detector_log",
+      "whole_file": true,
+      "cap": 120,
+      "pattern": "plugin=ssbu-desync-detector/0\\.2\\.0 telemetry=1 hooks=lockstep,playback dialog=installed text_routes=args,plain heap_allocations=0"
+    },
+    "online-menu": {
+      "kind": "image",
+      "reference": "refs/online-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 40
+    },
+    "quickplay-menu": {
+      "kind": "image",
+      "reference": "refs/quickplay-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 40
+    },
+    "css-tile": {
+      "kind": "log",
+      "source": "tile_log",
+      "pattern": "settled screen=css at=(\\d+) hovered=\\1\\b",
+      "cap": 40
+    },
+    "matched": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "session slot=\\d+ kind=online",
+      "on_all": [
+        "a",
+        "b"
+      ],
+      "cap": 300
+    },
+    "popup-text": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "communication_text reason=\\w+ text_units=\\d+ route=\\w+",
+      "cap": 240
+    }
+  },
+  "rows": [
+    {
+      "id": "r00-load",
+      "start": "frontend-ready",
+      "end": "loaded",
+      "budget_min": 4,
+      "steps": [
+        {
+          "call": "game.load",
+          "params": {
+            "path": "@game"
+          },
+          "job_cap": 180,
+          "on": "a"
+        },
+        {
+          "call": "game.load",
+          "params": {
+            "path": "@game"
+          },
+          "job_cap": 180,
+          "on": "b"
+        },
+        {
+          "gate": "loaded",
+          "on": "a"
+        },
+        {
+          "gate": "loaded",
+          "on": "b"
+        },
+        {
+          "gate": "installed",
+          "on": "a"
+        },
+        {
+          "gate": "installed",
+          "on": "b"
+        },
+        {
+          "copy": "detector_log",
+          "as": "install-a",
+          "on": "a"
+        },
+        {
+          "copy": "detector_log",
+          "as": "install-b",
+          "on": "b"
+        }
+      ],
+      "evidence": [
+        "install lines with dialog=installed text_routes=args,plain heap_allocations=0 on both"
+      ]
+    },
+    {
+      "id": "r01-main",
+      "start": "loaded",
+      "end": "main",
+      "budget_min": 2,
+      "steps": [
+        {
+          "gate": "loaded",
+          "on": "a"
+        },
+        {
+          "gate": "loaded",
+          "on": "b"
+        },
+        {
+          "play": "attract-cancel",
+          "on": "a"
+        },
+        {
+          "play": "attract-cancel",
+          "on": "b"
+        },
+        {
+          "gate": "main",
+          "on": "a"
+        },
+        {
+          "gate": "main",
+          "on": "b"
+        },
+        {
+          "shot": "main",
+          "on": "a"
+        },
+        {
+          "shot": "main",
+          "on": "b"
+        }
+      ],
+      "evidence": [
+        "main menu on both"
+      ]
+    },
+    {
+      "id": "r02-online",
+      "start": "main",
+      "end": "online-menu",
+      "budget_min": 2,
+      "steps": [
+        {
+          "gate": "main",
+          "on": "a"
+        },
+        {
+          "play": "to-online",
+          "on": "a"
+        },
+        {
+          "gate": "online-menu",
+          "on": "a"
+        },
+        {
+          "gate": "main",
+          "on": "b"
+        },
+        {
+          "play": "to-online",
+          "on": "b"
+        },
+        {
+          "gate": "online-menu",
+          "on": "b"
+        },
+        {
+          "shot": "online",
+          "on": "a"
+        },
+        {
+          "shot": "online",
+          "on": "b"
+        }
+      ],
+      "evidence": [
+        "Online menu header on both"
+      ]
+    },
+    {
+      "id": "r03-quickplay",
+      "start": "online-menu",
+      "end": "quickplay-menu",
+      "budget_min": 2,
+      "steps": [
+        {
+          "gate": "online-menu",
+          "on": "a"
+        },
+        {
+          "play": "to-quickplay",
+          "on": "a"
+        },
+        {
+          "gate": "quickplay-menu",
+          "on": "a"
+        },
+        {
+          "gate": "online-menu",
+          "on": "b"
+        },
+        {
+          "play": "to-quickplay",
+          "on": "b"
+        },
+        {
+          "gate": "quickplay-menu",
+          "on": "b"
+        },
+        {
+          "shot": "quickplay",
+          "on": "a"
+        },
+        {
+          "shot": "quickplay",
+          "on": "b"
+        }
+      ],
+      "evidence": [
+        "Quickplay menu header on both"
+      ]
+    },
+    {
+      "id": "r04-css-match",
+      "start": "quickplay-menu",
+      "end": "matched",
+      "budget_min": 8,
+      "steps": [
+        {
+          "gate": "quickplay-menu",
+          "on": "a"
+        },
+        {
+          "play": "to-css",
+          "on": "a"
+        },
+        {
+          "gate": "css-tile",
+          "on": "a"
+        },
+        {
+          "gate": "quickplay-menu",
+          "on": "b"
+        },
+        {
+          "play": "to-css",
+          "on": "b"
+        },
+        {
+          "gate": "css-tile",
+          "on": "b"
+        },
+        {
+          "shot": "css",
+          "on": "a"
+        },
+        {
+          "shot": "css",
+          "on": "b"
+        },
+        {
+          "play": "pick",
+          "on": "a"
+        },
+        {
+          "play": "pick",
+          "on": "b"
+        },
+        {
+          "gate": "matched",
+          "on": "a"
+        },
+        {
+          "shot": "match",
+          "on": "a"
+        },
+        {
+          "shot": "match",
+          "on": "b"
+        }
+      ],
+      "evidence": [
+        "tile cursor settled on a CSS tile on both",
+        "detector session kind=online on both: the Quickplay match is running"
+      ]
+    },
+    {
+      "id": "r06-drop",
+      "start": "matched",
+      "end": "popup",
+      "budget_min": 5,
+      "steps": [
+        {
+          "wait_ms": 8000,
+          "reason": "let the match run a few seconds before the peer goes silent"
+        },
+        {
+          "call": "game.pause",
+          "on": "b"
+        },
+        {
+          "gate": "popup-text",
+          "on": "a"
+        },
+        {
+          "wait_ms": 2500,
+          "reason": "the pop-up animates in after its text is set"
+        },
+        {
+          "shot": "popup",
+          "on": "a"
+        },
+        {
+          "wait_ms": 3000,
+          "reason": "a second frame of the settled pop-up"
+        },
+        {
+          "shot": "popup-settled",
+          "on": "a"
+        },
+        {
+          "copy": "detector_log",
+          "as": "events-a",
+          "on": "a"
+        },
+        {
+          "copy": "trace_jsonl",
+          "as": "trace-a",
+          "on": "a"
+        },
+        {
+          "run": "steps.py:copy_detector_folder",
+          "args": {
+            "name": "after-popup"
+          },
+          "on": "a"
+        }
+      ],
+      "evidence": [
+        "pop-up screenshot on a",
+        "communication_text with its route on a",
+        "trace records of the text route on a"
+      ]
+    },
+    {
+      "id": "r07-peer",
+      "start": "popup",
+      "end": "peer-resumed",
+      "budget_min": 2,
+      "steps": [
+        {
+          "call": "game.resume",
+          "on": "b"
+        },
+        {
+          "wait_ms": 20000,
+          "reason": "b resumes into a session the other side already ended"
+        },
+        {
+          "shot": "peer",
+          "on": "b"
+        },
+        {
+          "copy": "detector_log",
+          "as": "events-b",
+          "on": "b"
+        },
+        {
+          "run": "steps.py:copy_detector_folder",
+          "args": {
+            "name": "after-resume"
+          },
+          "on": "b"
+        }
+      ],
+      "evidence": [
+        "what b shows after resuming",
+        "b's detector log"
+      ]
+    }
+  ]
+}

@@ -1,3 +1,26 @@
+# Popup-route worker — 2026-11-05 (current; everything below is history)
+
+Brief: /home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route-brief-20261105.md.
+Worker Claude Opus 5.5 xhigh (claude-opus-5-5), session fa2f179b; watcher
+/tmp/claude-watch-fa2f179b (pid in its status.txt), reap before yielding.
+Playbook read at 0f0f533 (operator-pending files left alone). Worktree
+/home/intpa/ssbu-desync-detector-popup, branch feat/disconnect-popup-route:
+316f18d baseline (inherited uncommitted work), 3c6489a plain route.
+Work folder: /home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/.
+
+Found statically: the pop-up body (.1eef640, from pop-up dispatch .32f1cc4)
+sets a sentence without arguments through .377a120 -> plain formatter
+.37ae170 -> setter .37a2270; the old hook only covers the argument route
+(.37a2660 -> .37ab750). New hook .377a250 (mov w2,w0, 8-aligned, setter call
+not relocated), 4 guards, route-guards.log (existing 6 guards still match;
+no branch into either relocated span). Card scan card-scan-20261105.log:
+no plugin at the new sites; ARCropolis calls .377a120 (no patch).
+Gates r2 (gates/r2-*.log): test 131 pass, clippy -D warnings, no-default,
+release, diag all exit 0. Release = diag NRO sha256 680bc561aaa2b976...,
+57344 B, resident 139264 (136 KiB); artifacts/r2/.
+
+Open: Eden pair proof (route trace + pop-up screenshot + communication_text
+route=plain), Task B replay of card match-0.bin. No push/install/card.
 # Disconnect-reason candidate — 2026-11-03
 
 FINAL18:21Z read-only capture complete:140files15,201,850B in work/switch/

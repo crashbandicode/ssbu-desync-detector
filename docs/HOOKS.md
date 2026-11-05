@@ -15,8 +15,32 @@ nothing is installed on another game version.
 | `0x16cc2c4` | the other console's end message |
 | `0x135fd60` | a replay playback frame and its position check |
 | `0x37ad8e8` | unreleased: append a reason at the formatter's return, only for the guarded communication-text caller |
+| `0x377a250` | unreleased: append a reason to label text set without arguments, before the pane setter |
 
-The hook runs before the formatter's epilogue, after its work. Its aligned
+The game sets a label's text two ways, and each has one route in
+`src/dialog.rs` (`Route`): with arguments through `.37a2660` and the
+formatter `.37ab750` (`args`), and without through `.377a120` and the plain
+formatter `.37ae170` (`plain`). The pop-up manager's body text (`.1eef640`)
+uses `plain` for a sentence with no placeholders. One function,
+`append_in_frame`, is the hook body for both; the event names the route
+(`communication_text … route=plain`).
+
+`plain` is hooked inside `.377a120` at `mov w2, w0`, after the formatter
+returned the count in w0 and before `bl .37a2270` at `0x377a260`. The site is
+8-byte aligned: the far patch relocates MOV/ADD (sp-relative)/MOV/MOV, the
+near patch only the first MOV, and the setter call stays in place. No direct
+branch targets `0x377a254..0x377a25f`. The frame is 0x40 bytes of saves above
+0x1120 bytes, so FP = SP+0x1150 and the zeroed 0x1000-byte buffer is
+SP+0x120. Writing w0 makes the relocated `mov w2, w0` pass the new count to
+the setter; `mov x0, x19` then replaces x0. Four 64-byte guards: the
+prologue (`377a120`), lookup/memset/formatter call (`377a210`), the hooked
+consumer (`377a250`) and the formatter's bound/terminator/return
+(`37ae580`). The dated 2026-11-05 copy of the 18 card NROs has no reference
+to these sites; ARCropolis calls `.377a120` (its own UI text then passes
+the phrase filter like any other) and patches nothing there
+(`card-scan-20261105.log` in the popup-route work folder).
+
+The `args` hook runs before the formatter's epilogue, after its work. Its aligned
 far patch relocates four instructions: MOV, ADD sp, LDP, LDP. The near
 patch relocates only MOV. Neither span includes a branch or call.
 The formatter has a 528-byte frame, with saved LR at SP+520 and FP at
@@ -28,9 +52,12 @@ the epilogue restores the caller's original x20 from its stack slot.
 Six 64-byte guards cover the caller stack allocation (`37a2660`),
 lookup/zeroing/capacity/call (`37a26f0`), consumer (`37a272c`),
 termination/bounding (`37ad828`), formatter return (`37ad8e8`) and
-formatter frame (`37ab750`). All must pass before installing the hook.
-A failed guard is named in the install line. No pointer is retained and
-no scratch buffer is shared. The original formatter and UI call execute.
+formatter frame (`37ab750`). Each route is installed only when all of its
+own guards pass; a failed guard is named in the install line
+(`dialog_guard_failed=<site>`), which then reads `dialog=partial` or
+`dialog=not_installed`, and `text_routes=` lists the installed routes. No
+pointer is retained and no scratch buffer is shared. The original formatter
+and UI call execute.
 
 The dated 2026-11-03 copy of all 17 card NROs has no reference to this site
 or the ABI guard offsets (`card-dialog-scan-20261103.log`,
