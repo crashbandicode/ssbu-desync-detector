@@ -1,4 +1,11 @@
-# Popup-route worker — 2026-11-06 00:15Z (current; everything below is history)
+# Popup-route worker — 2026-11-06 close-out (current; everything below is history)
+
+Coordinator check ~23:45Z accepted dd-popup-y03 r05 (cite a-233408Z-613373-popup.png; a's later
+popup-settled shot is black). Close-out: no further boots; compliance report
+/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/compliance-final.md (every agent row
+disposed; fails: README GIF, Up deadline, unguarded quick commands). Playbook clone now cd605af
+(compliance.py only since 0f0f533). No Eden, claim, watcher or job of this worker is running.
+
 
 Brief: /home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route-brief-20261105.md, plus the relayed
 order to use any free Eden slot. Worker claude-opus-5-5/xhigh, session fa2f179b (no watcher running).

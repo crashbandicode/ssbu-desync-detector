@@ -48,7 +48,10 @@ cursor only (runs in `/home/intpa/eden-runs/`):
   `.377a250` (called from `.1eef838`, dispatch `.32f1cc8`), and the setter
   `.37a2270` receiving the same buffer (SP+0x120) with 102 units and the
   reason. The argument route's point did not fire. Consoles: no panic,
-  abort, crash or Unmapped line; a's unmapped-access total 0.
+  abort, crash or Unmapped line; a's unmapped-access total 0. Screenshot:
+  row `r05-desync-popup`, `a-233408Z-613373-popup.png` (and b's
+  `b-233408Z-168310-popup.png`); a's second shot 3 s later
+  (`a-233411Z-…-popup-settled.png`) is all black and is not evidence.
 
 - `dd-popup-y05`: a ran release `92fbcf84` (the final source; it differs
   from `b5fa80f8` only in its build ID and four panic line numbers), b the
@@ -71,7 +74,13 @@ The card's `match-0.bin` (Quickplay (Elite), Mr. Game & Watch and Fox, a
 stage with hazards on) was played from the Vault in Eden (run `dd-popup-y01`, Eden
 `fefd2b5f`, Yoga) with only this detector (`680bc561`) and the tile cursor:
 no other plugin, no ARCropolis, no mods. A trace point on the playback
-check recorded the nine RNG streams every frame.
+check recorded the nine RNG streams every frame. Evidence: rows
+`r15-vault` to `r18-playback` and `r19-recopy` (the playback's detector
+folder copied after its frames file closed) of that run; the outputs below
+are `taskb-referee-closed.log`, `taskb-stream-attribution.log`,
+`taskb-referee-cardset.log` and `taskb-stream-attribution-cardset.log` in
+the popup-route work folder, whose `evidence/` has every file with its
+sha256.
 
 ```text
 cargo run --example referee -- <card detector folder> 0 <playback detector folder> 1
@@ -98,17 +107,24 @@ python3 -I -B tools/stream_attribution.py <trace.jsonl> --frame 4348 --ours 0x77
   computed=0xa417d4d4 recorded=0x613d0d23`), the referee gave the same
   verdict, and the stream reconstruction gave the same result.
 
-Established: with the same inputs, this console's simulated positions
-differed from an unmodded game's by frame 4151 while the checked RNG still
-agreed; 197 frames later one `sound` draw differed between the consoles
-(the stream behind launch voices and `PLAY_SEQUENCE` variants,
-[WHAT-IS-CHECKED](WHAT-IS-CHECKED.md)). The card's 18 plugins, as they run
-during a replay playback with the card's Deluxe settings, do not reproduce
-this console's positions either. Not established: what changed them. Left
-open are ARCropolis mods in `ultimate/mods` (not in the capture), plugin
-behaviour that runs only online (a playback cannot show it), and the
-console itself. The next evidence is a listing and copy of the card's
-`ultimate/mods`, then the same replay with them.
+Established: the operator's Switch ("this console", station 0 in its log)
+left vanilla. With the same inputs, its simulated positions first differed
+from an unmodded game's at frame 4151: the recording holds the game's
+position checksum for every frame, and the referee's first frame it could
+not reproduce is 4151. The checked RNG still agreed through 4151. The first
+checked value to differ between the consoles was
+at frame 4348 (`0x7774d5d0` here, `0x9985577d` on the other console), one
+extra `sound` draw on the other console (the stream behind launch voices
+and `PLAY_SEQUENCE` variants, [WHAT-IS-CHECKED](WHAT-IS-CHECKED.md)). The
+card's 18 plugins, as they run during a replay playback with the card's
+Deluxe settings, do not reproduce this console's positions either.
+
+Not established: what changed this console's positions, and whether the
+other console was vanilla (only this console's recording exists). Left open are
+ARCropolis mods in `ultimate/mods` (not in the capture), plugin behaviour
+that runs only online (a playback cannot show it), and the console itself.
+The next evidence is a listing and copy of the card's `ultimate/mods`,
+then the same replay with them.
 
 ## 2026-11-03
 
