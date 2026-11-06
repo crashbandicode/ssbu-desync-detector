@@ -1,28 +1,32 @@
-# Popup-route worker — 2026-11-05 23:50Z (current; everything below is history)
+# Popup-route worker — 2026-11-06 00:15Z (current; everything below is history)
 
-Brief: /home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route-brief-20261105.md. Worker
-claude-opus-5-5/xhigh, session fa2f179b (watcher /tmp/claude-watch-fa2f179b, stopped at hand-back).
+Brief: /home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route-brief-20261105.md, plus the relayed
+order to use any free Eden slot. Worker claude-opus-5-5/xhigh, session fa2f179b (no watcher running).
 Playbook 0f0f533. Branch feat/disconnect-popup-route (worktree /home/intpa/ssbu-desync-detector-popup):
-316f18d baseline (inherited), 3c6489a plain route, 8f1ce70 diag forced desync + tools, 77e48f0 docs.
-Work folder: /home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/ (evidence/, gates/,
-artifacts/r3/, compliance-resolved-r3.md, taskb-*.log).
+316f18d baseline, 3c6489a plain route, 8f1ce70 diag switch + tools, 77e48f0 docs, cce95c1 force-once
+diag + A/B + normal-session rows, then this HANDOFF commit. Work folder:
+/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/ (evidence/ + manifest.json, gates/r5-*,
+artifacts/r4/, compliance-resolved-r4.md, taskb-*.log).
 
-Route: pop-up body .1eef640 (from dispatch .32f1cc8) sets a sentence without arguments through
-.377a120 -> .37ae170 -> setter .37a2270. New hook .377a250 (Route `plain`), 4 guards; the old route
-(`args`, .37ad8e8) unchanged. Release r3 b5fa80f8 (57344 B, 136 KiB), diag r3 012e8146 (adds
-force_desync_frame from diag.txt; release has no diag strings).
-Eden (Yoga): dd-popup-y01 22:27-23:08Z, dd-popup-y03 23:30-23:38Z, both released clean.
-y03: forced desync at frame 600 on b -> both consoles showed "A connection error has occurred." +
-"Reason: Desync detected. ..." and logged communication_text reason=desync text_units=102 route=plain;
-trace: pop_sync_error, no args, .377a250, setter got 102 units. Consoles clean, unmapped total 0.
-Task B (y01 replay of card match-0.bin): vanilla equals this console's check 0-4151, positions not
-reproduced at 4151 -> referee "this console left vanilla"; first checked difference: one extra `sound`
-draw on the other console at 4348. Cause of the position divergence not established.
+Candidate: release 92fbcf849c196dd7e6e00b737eb6544b8ae09f56c153f0db7257b47fa64a3f1f (57344 B, 136 KiB),
+rebuilt byte-identical on cce95c1; diag 45a6b424 (force_desync_frame from diag.txt, once per boot).
+Route: pop-up body .1eef640 (dispatch .32f1cc8) -> no arguments -> .377a120 -> .37ae170 -> setter
+.37a2270; new hook .377a250 (Route `plain`), 4 guards; `args` route .37ad8e8 unchanged.
 
-Not done: args route never ran in Eden; no clean session after the pop-up; card-plugin replay A/B
-(next test: same replay with the card's plugin set and mods, then bisect). No push/install/card.
-Surface leftovers: /home/intpa/popup-route-work (inputs, scripts), /home/intpa/eden-runs/dd-popup-01
-(created, never up).
+Eden, Yoga only, all released clean, consoles 0 panic/abort/crash/Unmapped:
+- y01 22:27-23:08Z: route traces (inactivity pop-ups), replay of card match-0.bin (Task B).
+- y03 23:30-23:38Z and y05 23:52-00:10Z: forced desync -> pop-up "A connection error has occurred." +
+  "Reason: Desync detected. ..." on both, communication_text route=plain; y05 then an unforced match
+  ended normally on both at frame 7521, desync_seen=0.
+- ab1 23:43-23:48Z (one instance, card's 18 plugins + Deluxe config): replay stops at 4151 exactly as
+  with the detector alone.
+Task B: vanilla = this console 0-4151; positions not reproduced at 4151 (this console left vanilla);
+first checked difference one extra `sound` draw on the other console at 4348. Card plugins in playback
+don't reproduce it; open: card mods (ultimate/mods not captured), online-only plugin behaviour, console.
+
+Not done: args route never ran in Eden. No push/install/card access. Surface leftovers:
+/home/intpa/popup-route-work, /home/intpa/eden-runs/dd-popup-01 (never up). Yoga run folders
+dd-popup-y01..y05, ab1 under /home/intpa/eden-runs (copies removed, manifests in the work folder).
 # Disconnect-reason candidate — 2026-11-03
 
 FINAL18:21Z read-only capture complete:140files15,201,850B in work/switch/
