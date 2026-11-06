@@ -1,0 +1,101 @@
+{
+  "owner": "Cursor f774f0f3/readme-gifs",
+  "label": "template",
+  "host": "yoga",
+  "hostname": "yoga-ubuntu",
+  "ledger": "/tmp/deluxe-surface-1007/OWNER-COORDINATION.md",
+  "display_helper": {
+    "path": "/home/intpa/eden-nso-autolan/live-tools/display-rootful.ps1",
+    "sha256": "a930b7a6dcb6c7401afb8bbbb2c918ee9b09219a1cd64b4af862938c094e2cff"
+  },
+  "work_root": "/home/intpa/popup-route-work/template/work",
+  "state_dir": "/home/intpa/popup-route-work/template/state",
+  "pair_authorized": true,
+  "defer_load": true,
+  "runner": {
+    "path": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/runner.py",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "rows": {
+    "path": "/home/intpa/popup-route-work/template/rows.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "runtime": 5400,
+  "socket_cap": 90,
+  "load_cap": 180,
+  "stop_cap": 30,
+  "force_cap": 30,
+  "authorization": "README GIF worker 2026-11-06: same-host LAN Quickplay, no TrainingRooms, so a death does not desync the match. Disconnect by Home or by stopping the other instance.",
+  "instances": [
+    {
+      "key": "a",
+      "display": ":116",
+      "source": "/home/intpa/trainingrooms-eden-lead-astra4/profiles/y",
+      "app": {
+        "path": "/home/intpa/Applications/Eden-GIF/20261104-f916cf4b8c68-unmapped-stop-fefd2b5f0cfc/Eden.AppImage",
+        "sha256": "fefd2b5f0cfcc5ed5426e7b0ce1d91fe25060024c861b8ff1dfc7814462ca4fd"
+      },
+      "game": "/home/intpa/Games/Roms/Switch/Super Smash Bros. Ultimate [01006A800016E000]+[v13.0.3+ 9DLC][US](nsw2u.com).xci",
+      "plugins": [
+        {
+          "path": "/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/artifacts/r4/release/libssbu_desync_detector.nro",
+          "sha256": "92fbcf849c196dd7e6e00b737eb6544b8ae09f56c153f0db7257b47fa64a3f1f"
+        },
+        {
+          "path": "/home/intpa/trainingrooms-eden-pkg6/nro/aid/libssbu_tile_cursor.nro",
+          "sha256": "b8313ca2e66a52f1bcfc4afc764df1b7cdc5aee7e194bdea671cea02746934bc"
+        }
+      ],
+      "files": [],
+      "sources": {
+        "detector_log": "user/sdmc/ultimate/ssbu-desync-detector/events.log",
+        "tile_log": "user/sdmc/ultimate/ssbu-tile-cursor/events.log"
+      },
+      "trace": {
+        "unmapped_access": "log",
+        "symbols": [],
+        "points": [
+          {
+            "target": "main+0x135fd60",
+            "mode": "counters"
+          }
+        ]
+      }
+    },
+    {
+      "key": "b",
+      "display": ":117",
+      "source": "/home/intpa/trainingrooms-eden-lead-astra4/profiles/y",
+      "app": {
+        "path": "/home/intpa/Applications/Eden-GIF/20261104-f916cf4b8c68-unmapped-stop-fefd2b5f0cfc/Eden.AppImage",
+        "sha256": "fefd2b5f0cfcc5ed5426e7b0ce1d91fe25060024c861b8ff1dfc7814462ca4fd"
+      },
+      "game": "/home/intpa/Games/Roms/Switch/Super Smash Bros. Ultimate [01006A800016E000]+[v13.0.3+ 9DLC][US](nsw2u.com).xci",
+      "plugins": [
+        {
+          "path": "/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/artifacts/r4/release/libssbu_desync_detector.nro",
+          "sha256": "92fbcf849c196dd7e6e00b737eb6544b8ae09f56c153f0db7257b47fa64a3f1f"
+        },
+        {
+          "path": "/home/intpa/trainingrooms-eden-pkg6/nro/aid/libssbu_tile_cursor.nro",
+          "sha256": "b8313ca2e66a52f1bcfc4afc764df1b7cdc5aee7e194bdea671cea02746934bc"
+        }
+      ],
+      "files": [],
+      "sources": {
+        "detector_log": "user/sdmc/ultimate/ssbu-desync-detector/events.log",
+        "tile_log": "user/sdmc/ultimate/ssbu-tile-cursor/events.log"
+      },
+      "trace": {
+        "unmapped_access": "log",
+        "symbols": [],
+        "points": [
+          {
+            "target": "main+0x135fd60",
+            "mode": "counters"
+          }
+        ]
+      }
+    }
+  ]
+}

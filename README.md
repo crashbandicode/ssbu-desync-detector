@@ -54,11 +54,24 @@ to `sd:/ultimate/ssbu-desync-detector/`. Recordings are kept only for matches
 that did not end normally, and the log is capped, so it stays small.
 
 [0.3.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.3.0)
-(2026-11-06) adds the disconnect reason and telemetry below. In Eden
-(2026-11-05, two linked consoles with a diag-forced desync) the game's
-"A connection error has occurred." pop-up showed "Reason: Desync detected.
-The consoles stopped agreeing on the match.", and a normal match after it
-ended cleanly on both consoles. Not yet seen on a Switch.
+(2026-11-06) adds the disconnect reason and telemetry below. In Eden the
+game's "A connection error has occurred." pop-up then shows the reason.
+Not yet seen on a Switch.
+
+| | Without the reason | With 0.3.0 |
+|---|---|---|
+| **Desync** | ![Desync, without the reason: the game's connection-error pop-up and no Reason line](docs/media/desync-before.gif) | ![Desync, with 0.3.0: the same pop-up plus Reason: Desync detected](docs/media/desync-after.gif) |
+
+*Eden, 2026-11-06. The same Quickplay route, TrainingRooms 0.2.0-rc.2
+(`23b89786`) on station 1 only, so the first death desyncs. Without: released
+0.2.0 (`29067bb6`, commit `550cae6`), run `dd-gif-b1`, desync frame 908, the game's own
+"A connection error has occurred." With: released 0.3.0 (`0ac90bc6`, commit
+`49214c1`), run `dd-gif-a1`, desync frame 732, the same pop-up plus
+"Reason: Desync detected. The consoles stopped agreeing on the match."
+Peer ended, timeout, local link, local status and unknown were not reproduced:
+Home, then stopping the other instance, showed "You have been disconnected due
+to inactivity." and neither build logged `peer_end`, `sync_end` or
+`communication_text` (`dd-gif-a2`, `dd-gif-a3`, `dd-gif-b2`, `dd-gif-b3`).*
 
 [0.2.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.2.0)
 (2026-10-31) is 0.1.0's code built with link-time optimization: 124 KiB of

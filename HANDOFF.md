@@ -1,4 +1,33 @@
-# Popup-route worker — 2026-11-06 ~05:00Z addendum detector-stage-pilot-1 DONE (current)
+# README GIF worker — 2026-11-06 (current)
+
+Worker Cursor chat f774f0f3, live pair grok-4.7 high. Watcher unit
+`cursor-model-watcher-f774f0f3.service` (stop file `/tmp/cursor-model-watcher-f774f0f3/stop`,
+stopped with the report). Playbook `cd605af` on both hosts. Worktree
+`/home/intpa/ssbu-desync-detector-gifs`, branch `readme-gifs` from `49214c1`. No card, no push.
+
+Clips, both 1280×720, frames checked:
+
+- Desync after: `docs/media/desync-after.gif`, 7.4 s, run `dd-gif-a1` (Surface). Released 0.3.0
+  `0ac90bc6`, commit `49214c1`. TrainingRooms `23b89786` on station 1 only. Both logs:
+  `desync frame=732`, `communication_text reason=desync text_units=102 route=plain`. The row gate
+  `reason-desync` failed (pattern required `route=plain` with nothing between, and it ran after
+  the pop-up had closed). The raw recording already held the pop-up, so it was trimmed
+  (4700–12050 ms) and encoded. No second boot. Claim released 12:26:35Z. `RESULTS.md` records
+  r05 FAILED. Both console.logs: no panic/abort/crash/Unmapped.
+- Desync before: `docs/media/desync-before.gif`, 6.8 s, run `dd-gif-b1` (Yoga, 41G free at Up).
+  Released 0.2.0 `29067bb6`, tag commit `550cae6`. Same route. `desync frame=908`, no
+  `communication_text`. Pop-up is only "A connection error has occurred." 6/6 PASS. Claim
+  released 12:38:23Z, profile restored and verified. console.logs clean. Down's `game.stop`
+  hit its deadline and the lifecycle SIGKILLed both; RESULTS marks that as not a crash.
+
+Not reproduced, after two no-TrainingRooms pairs (`dd-gif-b2`/`dd-gif-a2`, then `dd-gif-b3`/`dd-gif-a3`, claims released). Home, then SIGKILL of the other instance, showed "You have been disconnected due to inactivity." Holding a stick on the recorded console did not change that. Neither 0.2.0 nor 0.3.0 logged `peer_end`, `sync_end`, or `communication_text`. That dialog is not the communication-error pop-up. Local link and local status need a NIFM fault; host networking was not touched. Unknown was not forced on a release build. Ally has one slot, so it cannot host a pair. ubuntu-xps was not ready for this worker.
+
+`docs/media/referee.gif` is still the 2026-10-29 unmodded replay refusal. It was scaled from
+480×270 / 11.1 s to 1280×720 / 9.6 s. It was not re-recorded.
+
+Hosts released 13:11Z. No Eden process left by this worker. Next: none for this task.
+
+# Popup-route worker — 2026-11-06 ~05:00Z addendum detector-stage-pilot-1 DONE (history)
 
 Result: TrainingRooms 0.2.0-rc.2 is necessary and sufficient. F (card set on both, pilots both) desync at
 frame 1499, early rebirth of the station-1 fighter (pos6: 1482 vs 1541); C (same minus TrainingRooms) 5
