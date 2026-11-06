@@ -53,31 +53,35 @@ Copy `libssbu_desync_detector.nro` to
 to `sd:/ultimate/ssbu-desync-detector/`. Recordings are kept only for matches
 that did not end normally, and the log is capped, so it stays small.
 
+[0.3.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.3.0)
+(2026-11-06) adds the disconnect reason and telemetry below. In Eden
+(2026-11-05, two linked consoles with a diag-forced desync) the game's
+"A connection error has occurred." pop-up showed "Reason: Desync detected.
+The consoles stopped agreeing on the match.", and a normal match after it
+ended cleanly on both consoles. Not yet seen on a Switch.
+
 [0.2.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.2.0)
 (2026-10-31) is 0.1.0's code built with link-time optimization: 124 KiB of
-memory instead of 552 KiB. It loaded and hooked in Eden next to the other
-plugins on the operator's card (an offline match, so no session to record),
-and has been on that Switch since 2026-10-31, installed over DBI and read
-back.
+memory instead of 552 KiB.
 
 ## More
 
-The unreleased development branch appends an evidence-based reason to English
-communication-error messages while retaining their original text and codes.
-It distinguishes recorded desyncs, local network status, an abnormal peer end,
-timeout and unknown. It does not infer a deliberate quit from silence or
-identify faulty hardware. Host tests and compilation are separate from the
-pending in-game UI/online checks. It is not in the published0.2.0release;
-the local telemetry candidate was installed on the operator's card on
-2026-11-03 with SHA prefix02488cdc.
-See [the dated work report](docs/DISCONNECT-DIALOG.md).
+0.3.0 appends an evidence-based reason to English communication-error
+messages, keeping their original text and codes. It covers both ways the game
+builds that text: sentences with placeholders, and plain sentences such as
+"A connection error has occurred." It distinguishes recorded desyncs, local
+network status, an abnormal peer end, timeout and unknown. It does not infer a
+deliberate quit from silence or identify faulty hardware. Other languages and
+system error applets are not covered. See
+[the dated work report](docs/DISCONNECT-DIALOG.md), which also traces the
+2026-11-05 desync to TrainingRooms' waiting-room flag.
 
-The development candidate also records five-second telemetry and snapshots
-around network changes and disconnect events. These include the console
-clock, polling intervals, frame activity and capture-loss counters. Keep
-both `events.log` and `events.previous.log` after a recurrence; the summary
-tool can read them together. This helps correlate an incident with router
-records, but does not by itself identify a faulty network component.
+0.3.0 also records five-second telemetry and snapshots around network changes
+and disconnect events: the console clock, polling intervals, frame activity
+and capture-loss counters. Keep both `events.log` and `events.previous.log`
+after a recurrence; the summary tool reads them together. This helps
+correlate an incident with router records, but does not by itself identify a
+faulty network component.
 
 - [docs/EDEN-PROOF.md](docs/EDEN-PROOF.md): the forced-desync test in Eden.
   It has not run through a real desync on a Switch yet.
