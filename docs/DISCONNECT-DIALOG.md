@@ -134,8 +134,9 @@ python3 -I -B tools/stream_attribution.py <trace.jsonl> --frame 4348 --ours 0x77
   stages, a Kirby model, the GAME SET narration and info layouts. There
   was nothing to bisect because no plugin or mod changed the result.
 
-Established: the operator's Switch ("this console", station 0 in its log)
-left vanilla. With the same inputs, its simulated positions first differed
+Established: the operator's Switch ("this console"; station 1 in that
+match, its frames file's flags are `0x101`; `peer=0` in the desync line is
+the other console) left vanilla. With the same inputs, its simulated positions first differed
 from an unmodded game's at frame 4151: the recording holds the game's
 position checksum for every frame, and the referee's first frame it could
 not reproduce is 4151. The checked RNG still agreed through 4151. The first
@@ -149,10 +150,113 @@ the card's seven mods loaded by the card's ARCropolis, alone or with the 18
 plugins: those playbacks are frame-for-frame identical to the unmodded one.
 The match was on Yoshi's Island (Melee), Battlefield form.
 
-Not established: what changed this console's positions, and whether the
-other console was vanilla (only this console's recording exists). Still
-open: plugin behaviour that runs only online (a playback cannot show it)
-and the console itself.
+Not established at that point: what changed this console's positions, and
+whether the other console was vanilla (only this console's recording exists).
+Open then: plugin behaviour that runs only online (a playback cannot show it)
+and the console itself. The next section answers the first.
+
+## 2026-11-06: what changed this console's positions
+
+Evidence is in the popup-route work folder: `taskb2/` (scripts and logs) and
+`evidence/` (`dd-popup-pos1`, `dd-popup-pos2`, `dd-popup-ty1`,
+`dd-popup-pos5`, `taskb2/`; each with its sha256 in `evidence/manifest.json`).
+The diag switch is on branch `taskb/playback-continue` (`8def90b`).
+
+**What differed.** The game's replay check (`.135fc84`–`.135fd5c`) is the
+32-bit sum of the x, y and z bit patterns of eight fighter-slot position
+vectors (`sp+0x70`). A trace of them during the vanilla playback (run
+`dd-popup-pos1`) matches the computed sum on all 4,152 frames. Fox was
+KO'd at the right blast zone at frame 4148 and stays frozen at
+(240.6212, 74.0794). The console's recorded sum at 4151 is exactly the
+vanilla sum with Fox at **(0.0, 170.0, 0.0)**, the rebirth point. Run
+`dd-popup-pos2` (detector diag `6bc2489a`, `playback_continue=1`: the
+playback keeps going past the mismatch) shows vanilla moving Fox there at
+**frame 4210**, 62 frames after the KO, then lowering him on the rebirth
+platform. On the console Fox was there at 4151, 3 frames after the KO, and
+did not then follow vanilla's descent (`positions.py`, `shift_test.py`).
+So this console ran Fox's death with a ~1-frame dead wait and no rebirth
+platform wait. Fox was this console's own fighter.
+
+**Why.** TrainingRooms 0.2.0-rc.2 is on the card (`libtraining_rooms.nro`
+`23b89786`, installed 2026-11-05 03:46Z). That NRO equals the Forgejo
+release `TrainingRoomsForUltimate` v0.2.0-rc.2, commit `36d7f46`. In it:
+
+- Every Training behaviour asks `scene::is_training()`, which is native
+  Training **or** `LOBBY_ACTIVE`, the waiting-room practice flag
+  (`src/runtime/scene.rs:34-36`, `src/model/scene.rs:20-23`).
+- `LOBBY_ACTIVE` is set and cleared only in `lobby::update()`, when it sees
+  the scene change (`src/runtime/lobby/training/lobby.rs:75-121`).
+  `update()` is called from one place: the input-mapping hook, and only when
+  the mapped slot is 0 (`src/runtime/features/input_delay.rs:50-53`).
+- With the save-state feature on, a death reads
+  `dead_rebirth_wait_frame` as 1 and `rebirth_move_frame`,
+  `rebirth_wait_frame`, `rebirth_invincible_frame` and
+  `rebirth_invincible_add_frame` as 0 (`src/runtime/features/states.rs:1147-1171`,
+  `src/model/state/hooks.rs:20-45`). Other Training-only answers come with
+  it, for example "can star KO" is false (`states.rs:1305-1310`).
+- The card's TrainingRooms settings (13:14Z capture, before the match) have
+  Lobby practice On, Save states On, Respawn invincibility Off. That is
+  exactly the instant-respawn case.
+
+In an online battle where this console is station 1, its local controller is
+mapped for slot 1, so `update()` never runs. The CPU pilot's own Eden run
+`o14` saw the same thing: inside the same input-mapping function, the station-1
+console's one mapped slot was 1 (`ssbu-cpu-pilot/docs/EDEN-RESULTS.md:155-164`). The practice flag set in the
+waiting room stays true into the battle, and every death of a fighter on this
+console takes the Training values. The other console takes the game's values.
+Positions then differ, which the online check (RNG only) does not compare.
+The check differed 197 frames later through a `sound` draw. This also explains
+why only this match desynced:
+
+- The card's other seven recorded online sessions all had this console at
+  station 0 (frames flags `0x1`) and ended normally.
+- TrainingRooms' own log of a morning Quickplay as station 0 shows the flag
+  cleared at the battle start (`#561 scene … melee=0x0e`,
+  `#562 [LobbyPractice] active=false`).
+- Deluxe's log shows the waiting-room practice stage loaded 19 s before this
+  match.
+
+**Excluded:**
+
+- The card's mods: the match was not on a modded stage, and the playbacks
+  with them are byte-identical.
+- The CPU pilot: the release build always starts with P1 as the player
+  (`src/runtime.rs:735-741`). Its page was never opened in that boot (Deluxe
+  log: one overlay chord, Hidden → Settings), and with P1 as the player its
+  online hooks take no lease (`core/src/online.rs:85`).
+- Deluxe: it writes no simulation state; its online-only behaviour is timing
+  and the Horizon-OC gate (`taskb2/deluxe-audit.md`).
+- memory-guard: no repair logged that boot.
+
+A hardware fault would not produce this clean, rule-shaped change at the first
+KO of the match.
+
+**Eden proof** (Yoga, Eden `fefd2b5f`, 2026-11-06, both claims released clean).
+
+Run `dd-popup-ty1` was a same-host LAN Quickplay pair:
+- a: detector `92fbcf84` and tile cursor only.
+- b: the card's TrainingRooms `23b89786` with `libnro_hook`/`libparam_hook`, the card's TrainingRooms settings, the detector and tile cursor.
+- a readied first and became station 0; b readied second and became station 1 (frames flags `0x1` / `0x101`).
+
+What happened:
+- b's TrainingRooms logged the waiting-room practice on (`[LobbyPractice] scene … melee=0x0d mode=0x07010101`, `active=true`).
+- After the battle (melee 0x0e) began, it logged no scene change and no `active=false`.
+- b's fighter ran off the stage. Both detectors logged `desync frame=837` (a: `ours=0xaf8e5338 theirs=0xd764b014 peer=1`; b the reverse, `peer=0`), and the pop-up showed the reason on both.
+
+Run `dd-popup-pos5` played both kept recordings in vanilla (diag `playback_continue=1` and the position trace):
+- The vanilla console's recording plays to its end (frame 887) with no mismatch.
+- The TrainingRooms console's recording first fails at frame 536. b's fighter was KO'd at 533 and frozen at (168.0097, −154.5136). Vanilla moves it to (0, 170) at 595 (KO+62) and lowers it 166.586, 163.243, …. The recording has it at (0, 170) at 536 (KO+3) and then not on that descent (`taskb2/shift-test-ty1-tr.log`).
+
+That is the card's signature exactly, 59 frames early. The plugin set was only TrainingRooms and its two dependencies.
+
+Not fixed here (the order was to find causes). The change belongs in
+TrainingRooms, another project. Its waiting-room flag must not outlive the
+waiting room for a console that is not station 0. Either the scene check must
+run on every frame for whichever slot this console maps (not only slot 0), or
+the widened predicate must re-check the live scene (melee 0x0d) each time it
+is asked. Until then, a TrainingRooms console with Lobby practice on can
+desync its online battles whenever it plays as station 1 and a fighter of its
+own dies.
 
 ## 2026-11-03
 

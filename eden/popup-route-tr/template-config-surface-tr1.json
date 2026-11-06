@@ -1,0 +1,131 @@
+{
+  "owner": "Claude fa2f179b/popup-route",
+  "label": "template",
+  "host": "surface",
+  "hostname": "ubuntu-surface",
+  "ledger": "/tmp/deluxe-surface-1007/OWNER-COORDINATION.md",
+  "ledger_ssh": "memento-claw-yoga-ubuntu",
+  "display_helper": {
+    "path": "/home/intpa/eden-nso-autolan/live-tools/display-rootful.ps1",
+    "sha256": "a930b7a6dcb6c7401afb8bbbb2c918ee9b09219a1cd64b4af862938c094e2cff"
+  },
+  "work_root": "/home/intpa/popup-route-work/template/work",
+  "state_dir": "/home/intpa/popup-route-work/template/state",
+  "pair_authorized": true,
+  "defer_load": true,
+  "runner": {
+    "path": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/runner.py",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "rows": {
+    "path": "/home/intpa/popup-route-work/template/rows.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "runtime": 5400,
+  "socket_cap": 90,
+  "load_cap": 180,
+  "stop_cap": 30,
+  "force_cap": 30,
+  "authorization": "Primary order 2026-11-06 ~02:25Z (Task B, find causes): Surface LAN Quickplay pair; a vanilla (detector), b the card's TrainingRooms 0.2.0-rc.2 + nro_hook + param_hook with the card's TrainingRooms settings; b's fighter runs off the stage in the match; detectors on both. No card access, no install.",
+  "instances": [
+    {
+      "key": "a",
+      "display": ":116",
+      "source": "/home/intpa/trainingrooms-eden-lead-astra4/profiles/g",
+      "app": {
+        "path": "/home/intpa/Applications/Eden-GIF/20261104-f916cf4b8c68-unmapped-stop-fefd2b5f0cfc/Eden.AppImage",
+        "sha256": "fefd2b5f0cfcc5ed5426e7b0ce1d91fe25060024c861b8ff1dfc7814462ca4fd"
+      },
+      "game": "/home/intpa/eden-assets/games/01006A800016E000/base/Super Smash Bros. Ultimate [01006A800016E000]+[v13.0.3+ 9DLC][US](nsw2u.com).xci",
+      "plugins": [
+        {
+          "path": "/home/intpa/popup-route-work/artifacts/r4-release/libssbu_desync_detector.nro",
+          "sha256": "92fbcf849c196dd7e6e00b737eb6544b8ae09f56c153f0db7257b47fa64a3f1f"
+        },
+        {
+          "path": "/home/intpa/popup-route-work/artifacts/tile-cursor/libssbu_tile_cursor.nro",
+          "sha256": "b8313ca2e66a52f1bcfc4afc764df1b7cdc5aee7e194bdea671cea02746934bc"
+        }
+      ],
+      "files": [],
+      "sources": {
+        "detector_log": "user/sdmc/ultimate/ssbu-desync-detector/events.log",
+        "tile_log": "user/sdmc/ultimate/ssbu-tile-cursor/events.log"
+      },
+      "trace": {
+        "unmapped_access": "log",
+        "symbols": [],
+        "points": [
+          {
+            "target": "main+0x135fd60",
+            "mode": "counters"
+          }
+        ]
+      }
+    },
+    {
+      "key": "b",
+      "display": ":117",
+      "source": "/home/intpa/trainingrooms-eden-lead-astra4/profiles/g",
+      "app": {
+        "path": "/home/intpa/Applications/Eden-GIF/20261104-f916cf4b8c68-unmapped-stop-fefd2b5f0cfc/Eden.AppImage",
+        "sha256": "fefd2b5f0cfcc5ed5426e7b0ce1d91fe25060024c861b8ff1dfc7814462ca4fd"
+      },
+      "game": "/home/intpa/eden-assets/games/01006A800016E000/base/Super Smash Bros. Ultimate [01006A800016E000]+[v13.0.3+ 9DLC][US](nsw2u.com).xci",
+      "plugins": [
+        {
+          "path": "/home/intpa/popup-route-work/artifacts/r4-release/libssbu_desync_detector.nro",
+          "sha256": "92fbcf849c196dd7e6e00b737eb6544b8ae09f56c153f0db7257b47fa64a3f1f"
+        },
+        {
+          "path": "/home/intpa/popup-route-work/artifacts/tile-cursor/libssbu_tile_cursor.nro",
+          "sha256": "b8313ca2e66a52f1bcfc4afc764df1b7cdc5aee7e194bdea671cea02746934bc"
+        },
+        {
+          "path": "/home/intpa/popup-route-work/card/plugins/libtraining_rooms.nro",
+          "sha256": "23b897869e47c39e6e1c5f02c363e396e2929068e793e8a76f28c679dfee6a23"
+        },
+        {
+          "path": "/home/intpa/popup-route-work/card/plugins/libnro_hook.nro",
+          "sha256": "ca7aec03aee49fea539dcb92569fea5bc5389f77377ba2a30e4d0b7ebd0255e6"
+        },
+        {
+          "path": "/home/intpa/popup-route-work/card/plugins/libparam_hook.nro",
+          "sha256": "3ed7a2945084176cbb7742d99878f1e8d3a0992feb0fef74be2cfbc68ac8fb88"
+        }
+      ],
+      "files": [
+        {
+          "path": "/home/intpa/popup-route-work/tr-settings/settings.json",
+          "sha256": "1f6d27ee3bcb950a9719e363aedc9cad15c4eb111644f7c7cb23a991870de717",
+          "to": "user/sdmc/ultimate/TrainingRooms/settings.json"
+        },
+        {
+          "path": "/home/intpa/popup-route-work/tr-settings/cycle_preload.ini",
+          "sha256": "e90a0dfedf738ee7131cd651969f99ebf8f454904ad7a64ff0c3a993b3e46216",
+          "to": "user/sdmc/ultimate/TrainingRooms/cycle_preload.ini"
+        },
+        {
+          "path": "/home/intpa/popup-route-work/tr-settings/button_config.ini",
+          "sha256": "8f00c3ffdad7ecb2610570277ab20fbfacdc8c78c05b1296e2bc0f74c8af830f",
+          "to": "user/sdmc/ultimate/TrainingRooms/button_config.ini"
+        }
+      ],
+      "sources": {
+        "detector_log": "user/sdmc/ultimate/ssbu-desync-detector/events.log",
+        "tile_log": "user/sdmc/ultimate/ssbu-tile-cursor/events.log",
+        "tr_log": "user/sdmc/ultimate/TrainingRooms/practice-diagnostics.log"
+      },
+      "trace": {
+        "unmapped_access": "log",
+        "symbols": [],
+        "points": [
+          {
+            "target": "main+0x135fd60",
+            "mode": "counters"
+          }
+        ]
+      }
+    }
+  ]
+}

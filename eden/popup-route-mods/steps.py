@@ -138,6 +138,62 @@ def to_vault(ctx, main_ref='/home/intpa/ssbu-mod-playbook/tools/eden-runner/libr
     raise RuntimeError(f'main menu not reached after {tries} presses; looks [main, gm] {looks}')
 
 
+def run_off_and_watch(ctx, mover='b', peer='a', run_s=4.0, fall_s=4.0, direction=1.0, cap_s=150,
+                      pattern=r'desync frame=\d+|sync_end trigger=\w+'):
+    """`mover` loses a stock on purpose: it runs `direction` (1 right, -1 left) for run_s, then holds that way and down
+    for fall_s (off the stage, past the ledge, fast fall). `peer` gets varied input meanwhile (walk left, walk right,
+    jump, shield every 0.7 s) so it is not dropped for inactivity. Then both get varied input until either detector
+    logs `pattern` or cap_s pass; input is released. Returns the matched lines per instance."""
+    import os
+    import re
+    import time
+    runner = ctx.runner
+    logs = {on: runner.instances[on]['detector_log'] for on in (mover, peer)}
+    starts = {on: os.path.getsize(path) for on, path in logs.items()}
+
+    def vary(on, tick):
+        kind = tick % 4
+        if kind in (0, 1):
+            runner.call(on, 'input.stick', {'stick': 'left', 'x': -1 if kind == 0 else 1, 'y': 0, 'lease_ms': 300})
+        else:
+            runner.call(on, 'input.button', {'button': 'x' if kind == 2 else 'zl', 'state': 'tap',
+                                             'duration_ms': 100, 'lease_ms': 600})
+
+    found, tick = {}, 0
+    began = time.monotonic()
+    try:
+        while time.monotonic() - began < run_s + fall_s:
+            ctx.check_stop()
+            down = -1 if time.monotonic() - began >= run_s else 0
+            runner.call(mover, 'input.stick', {'stick': 'left', 'x': direction, 'y': down, 'lease_ms': 400})
+            vary(peer, tick)
+            tick += 1
+            time.sleep(0.25)
+        runner.call(mover, 'input.stick', {'stick': 'left', 'x': 0, 'y': 0, 'lease_ms': 100})
+        ctx.log({'run_off': mover, 'seconds': round(time.monotonic() - began, 1)})
+        until = time.monotonic() + cap_s
+        while time.monotonic() < until and not found:
+            ctx.check_stop()
+            vary(mover, tick + 2)
+            vary(peer, tick)
+            tick += 1
+            time.sleep(0.7)
+            for on, path in logs.items():
+                hits = [line for line in _new_lines(path, starts[on]).splitlines() if re.search(pattern, line)]
+                if hits:
+                    found[on] = hits[:4]
+    finally:
+        for on in logs:
+            runner.call(on, 'input.reset')
+    time.sleep(2)
+    for on, path in logs.items():
+        found.setdefault(on, [line for line in _new_lines(path, starts[on]).splitlines() if re.search(pattern, line)][:4])
+    ctx.log({'run_off_and_watch': found})
+    if not any(found.values()):
+        raise RuntimeError(f'no {pattern!r} on {mover} or {peer} within {cap_s} s of the run-off')
+    return found
+
+
 def probe_input(ctx, buttons=('b',), hold_ms=300, settle_s=2.5):
     """Diagnose a screen that ignores a segment: tap each button with input.button, keep its full reply (the
     engine's accepted/observed/frontend/gated status) and a screenshot after it settles."""
@@ -291,6 +347,25 @@ def read_trace(ctx, on=None, name='trace'):
     path.write_text(json.dumps(records, indent=1))
     ctx.log({'trace_records': len(records), 'on': on, 'path': str(path)})
     return len(records)
+
+
+def arm_position_trace(ctx):
+    """Arm a per-frame point on the playback check that keeps what the position checksum is made of: the
+    replay frame index, the recorded checksum ([x22+4]) and the eight 16-byte position vectors at sp+0x70
+    (x, y, z, 0 per fighter slot) whose x/y/z bit patterns the game adds into w8 (.135fc84-.135fd5c)."""
+    point = {
+        'target': f'main+0x{PLAYBACK_CHECK:x}',
+        'registers': ['x8', 'x22', 'x27', 'sp'],
+        'captures': [
+            {'expression': '[x27+0x590]+0x200078', 'type': 'u32'},
+            {'expression': 'x22+4', 'type': 'u32'},
+            {'expression': 'sp+0x70:128', 'type': 'bytes'},
+        ],
+        'rate_limit': 1000,
+    }
+    result = ctx.call('trace.arm', point)
+    ctx.log({'armed_position_trace': point, 'result': result})
+    return {'result': result}
 
 
 def arm_rng_trace(ctx):

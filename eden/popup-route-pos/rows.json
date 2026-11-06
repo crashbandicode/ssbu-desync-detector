@@ -1,0 +1,346 @@
+{
+  "game_id": "01006A800016E000",
+  "start": "frontend-ready",
+  "about": "Task B cause search (2026-11-06): the card's match-0.bin played from the Vault on one instance with only the card's detector; a trace on the playback check keeps the frame index, the recorded checksum and the eight position vectors the checksum adds up (sp+0x70, 128 bytes), to name the coordinate behind the frame-4151 difference.",
+  "setup": [
+    {
+      "state": "Replay in the save",
+      "via": "fixture",
+      "ref": "files: match-0.bin -> save_data/replay"
+    },
+    {
+      "state": "Title to main menu",
+      "via": "hook",
+      "ref": "steps.py:to_main"
+    },
+    {
+      "state": "Main menu to the replay list",
+      "via": "record",
+      "ref": "back2, gm-to-vault (recipes); to-replays, select (dd-popup-y01)"
+    }
+  ],
+  "segments": {
+    "to-replays": {
+      "file": "segments/to-replays.edenmacro.json",
+      "cap": 30,
+      "recipe": [
+        {
+          "buttons": "right",
+          "hold": 150,
+          "gap": 1.0
+        },
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 6
+        }
+      ],
+      "sha256": "212cae32caa6f867e45d650661a31b8764703fcc9589ade74dec0c5456f8a459",
+      "recorded": "2026-11-05T22:59:01Z"
+    },
+    "select": {
+      "file": "segments/select.edenmacro.json",
+      "cap": 30,
+      "recipe": [
+        {
+          "gap": 6,
+          "buttons": "a",
+          "hold": 150
+        }
+      ],
+      "sha256": "17ca6bcc8d1da8732255d8fccc0b9a2e58cbf1cf8fb1938a1baab75701f8c8c8",
+      "recorded": "2026-11-05T22:59:21Z"
+    },
+    "main-to-vault": {
+      "file": "segments/main-to-vault.edenmacro.json",
+      "cap": 40,
+      "sha256": "e818c209cb43a3acfe3d7fb0d7b6df708c976912df63c33847e89fbbd926540c",
+      "from_run": "dd-popup-ab1"
+    }
+  },
+  "gates": {
+    "loaded": {
+      "kind": "status",
+      "expect": {
+        "running": true,
+        "loading_complete": true
+      },
+      "max_frame_age_ms": 1500,
+      "cap": 180,
+      "from_run": "p4s-shared",
+      "library": "loaded"
+    },
+    "main": {
+      "kind": "image",
+      "reference": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/library/refs/main.png",
+      "sha256": "902628cebd8620847be44e41a826046740f495ca0dfa7e78d8482c43c0da1bdc",
+      "roi": [
+        150,
+        265,
+        450,
+        335
+      ],
+      "tolerance": 8,
+      "cap": 30,
+      "reference_is_roi": true,
+      "from_run": "lr-03",
+      "library": "main"
+    },
+    "installed-card": {
+      "kind": "log",
+      "source": "detector_log",
+      "whole_file": true,
+      "cap": 180,
+      "pattern": "plugin=ssbu-desync-detector/0\\.2\\.0 telemetry=1 hooks=lockstep,playback dialog=installed heap_allocations=0"
+    },
+    "vault-menu": {
+      "kind": "image",
+      "reference": "refs/vault-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "a37b002d341e3bd6fc193614008a8950109662ce32c14d8d5edfb339f8edab6d",
+      "acquired": "2026-11-05T22:58:40Z"
+    },
+    "replays-menu": {
+      "kind": "image",
+      "reference": "refs/replays-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "0473bd9a725dd6e529720158fc1360b28f054ed897fa27a05642ea9086a3cb2a",
+      "acquired": "2026-11-05T22:59:01Z"
+    },
+    "replay-list": {
+      "kind": "image",
+      "reference": "refs/replay-list.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 40,
+      "sha256": "e8287f5b02a14790974f1f46140aa3769d1b81e84248d342e5e122c69882d5dc",
+      "acquired": "2026-11-05T22:59:22Z"
+    },
+    "playback-start": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "session slot=\\d+ kind=playback",
+      "cap": 90
+    },
+    "playback-end": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "kind=playback slot=\\d+ frame=(43[5-9]\\d|4[4-9]\\d\\d|[5-9]\\d{3}|\\d{5})|frame_gap kind=playback|playback_mismatch",
+      "cap": 300
+    },
+    "main-gm": {
+      "kind": "image",
+      "reference": "refs/main-gm.png",
+      "sha256": "58a70428ebce0d05b5db04ba1912dcb1f8ab5a9a08c62f224880abeb8593933b",
+      "roi": [
+        740,
+        105,
+        1070,
+        170
+      ],
+      "cap": 30,
+      "note": "main menu with Games & More selected: b's screenshot b-015657Z-854495 (a's first acquire caught the stage select)"
+    }
+  },
+  "rows": [
+    {
+      "id": "r00-load",
+      "start": "frontend-ready",
+      "end": "loaded",
+      "budget_min": 4,
+      "steps": [
+        {
+          "call": "game.load",
+          "on": "a",
+          "params": {
+            "path": "@game"
+          },
+          "job_cap": 180
+        },
+        {
+          "gate": "loaded",
+          "on": "a"
+        },
+        {
+          "gate": "installed-card",
+          "on": "a"
+        },
+        {
+          "reason": "other plugins finish booting",
+          "wait_ms": 15000
+        },
+        {
+          "shot": "boot",
+          "on": "a"
+        },
+        {
+          "as": "install-a",
+          "copy": "detector_log",
+          "on": "a"
+        }
+      ]
+    },
+    {
+      "id": "r01-main",
+      "start": "loaded",
+      "end": "main",
+      "budget_min": 3,
+      "steps": [
+        {
+          "gate": "loaded",
+          "on": "a"
+        },
+        {
+          "args": {
+            "tries": 8
+          },
+          "on": "a",
+          "run": "steps.py:to_main",
+          "check": true
+        },
+        {
+          "gate": "main",
+          "on": "a"
+        }
+      ]
+    },
+    {
+      "id": "r02-vault",
+      "start": "main",
+      "end": "vault-menu",
+      "budget_min": 3,
+      "steps": [
+        {
+          "gate": "main",
+          "on": "a"
+        },
+        {
+          "run": "steps.py:to_vault",
+          "on": "a",
+          "check": true
+        },
+        {
+          "gate": "vault-menu",
+          "on": "a"
+        }
+      ]
+    },
+    {
+      "id": "r03-list",
+      "start": "vault-menu",
+      "end": "replay-list",
+      "budget_min": 3,
+      "steps": [
+        {
+          "gate": "vault-menu",
+          "on": "a"
+        },
+        {
+          "play": "to-replays",
+          "on": "a"
+        },
+        {
+          "gate": "replays-menu",
+          "on": "a"
+        },
+        {
+          "play": "select",
+          "on": "a"
+        },
+        {
+          "gate": "replay-list",
+          "on": "a"
+        },
+        {
+          "shot": "replay-list",
+          "on": "a"
+        }
+      ]
+    },
+    {
+      "id": "r04-playback",
+      "start": "replay-list",
+      "end": "playback",
+      "budget_min": 7,
+      "steps": [
+        {
+          "run": "steps.py:arm_position_trace",
+          "on": "a"
+        },
+        {
+          "gate": "replay-list",
+          "on": "a"
+        },
+        {
+          "play": "select",
+          "on": "a"
+        },
+        {
+          "shot": "replay-options",
+          "on": "a"
+        },
+        {
+          "play": "select",
+          "on": "a",
+          "unchecked": true
+        },
+        {
+          "gate": "playback-start",
+          "on": "a"
+        },
+        {
+          "reason": "a view of the playback",
+          "wait_ms": 10000
+        },
+        {
+          "shot": "playback",
+          "on": "a"
+        },
+        {
+          "gate": "playback-end",
+          "on": "a"
+        },
+        {
+          "shot": "playback-end",
+          "on": "a"
+        },
+        {
+          "reason": "the frames file is written through when the session closes",
+          "wait_ms": 9000
+        },
+        {
+          "run": "steps.py:copy_detector_folder",
+          "on": "a",
+          "args": {
+            "name": "after-playback"
+          }
+        },
+        {
+          "copy": "trace_jsonl",
+          "on": "a",
+          "as": "trace-a-positions"
+        }
+      ],
+      "note": "A on the replay opens its options with the play button focused; A again plays. (X for Details, then B, leaves focus on Details, so a following A reopens Details.)"
+    }
+  ]
+}

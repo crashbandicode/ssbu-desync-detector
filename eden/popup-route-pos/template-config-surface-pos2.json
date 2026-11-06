@@ -1,0 +1,73 @@
+{
+  "owner": "Claude fa2f179b/popup-route",
+  "label": "template",
+  "host": "surface",
+  "hostname": "ubuntu-surface",
+  "ledger": "/tmp/deluxe-surface-1007/OWNER-COORDINATION.md",
+  "ledger_ssh": "memento-claw-yoga-ubuntu",
+  "display_helper": {
+    "path": "/home/intpa/eden-nso-autolan/live-tools/display-rootful.ps1",
+    "sha256": "a930b7a6dcb6c7401afb8bbbb2c918ee9b09219a1cd64b4af862938c094e2cff"
+  },
+  "work_root": "/home/intpa/popup-route-work/template/work",
+  "state_dir": "/home/intpa/popup-route-work/template/state",
+  "pair_authorized": true,
+  "defer_load": true,
+  "runner": {
+    "path": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/runner.py",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "rows": {
+    "path": "/home/intpa/popup-route-work/template/rows.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "runtime": 5400,
+  "socket_cap": 90,
+  "load_cap": 180,
+  "stop_cap": 30,
+  "force_cap": 30,
+  "authorization": "Primary order 2026-11-06 ~02:25Z (Task B next step, find causes): one Surface instance replaying the card's match-0.bin with the detector diag build (playback_continue=1: the vanilla playback runs past the first position mismatch) and a per-frame position trace; no LAN play, no card access.",
+  "instances": [
+    {
+      "key": "a",
+      "display": ":116",
+      "source": "/home/intpa/trainingrooms-eden-lead-astra4/profiles/g",
+      "app": {
+        "path": "/home/intpa/Applications/Eden-GIF/20261104-f916cf4b8c68-unmapped-stop-fefd2b5f0cfc/Eden.AppImage",
+        "sha256": "fefd2b5f0cfcc5ed5426e7b0ce1d91fe25060024c861b8ff1dfc7814462ca4fd"
+      },
+      "game": "/home/intpa/eden-assets/games/01006A800016E000/base/Super Smash Bros. Ultimate [01006A800016E000]+[v13.0.3+ 9DLC][US](nsw2u.com).xci",
+      "plugins": [
+        {
+          "path": "/home/intpa/popup-route-work/artifacts/r6-diag/libssbu_desync_detector.nro",
+          "sha256": "6bc2489a478d46b9dce0dd0d4cedc5533d756d0f68b424e41654d10d3aa274f6"
+        }
+      ],
+      "files": [
+        {
+          "path": "/home/intpa/popup-route-work/inputs/match-0.bin",
+          "sha256": "6a614bf45f4901fa7a1d820e8957a8280ac22cbca196d5f3b85b21a9e372b2f1",
+          "to": "user/nand/user/save/0000000000000000/D5D8291B55A016597329A04D037CD073/01006A800016E000/save_data/replay/replay20261105153257.bin"
+        },
+        {
+          "path": "/home/intpa/popup-route-work/artifacts/r6-diag/diag.txt",
+          "sha256": "083100cfe9c1b3628e734be33f8733c6b1b1d61ae2a0375f710837c2bc271d6b",
+          "to": "user/sdmc/ultimate/ssbu-desync-detector/diag.txt"
+        }
+      ],
+      "sources": {
+        "detector_log": "user/sdmc/ultimate/ssbu-desync-detector/events.log"
+      },
+      "trace": {
+        "unmapped_access": "log",
+        "symbols": [],
+        "points": [
+          {
+            "target": "main+0x135fd60",
+            "mode": "counters"
+          }
+        ]
+      }
+    }
+  ]
+}

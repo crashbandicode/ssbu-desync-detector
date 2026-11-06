@@ -1,4 +1,60 @@
-# Popup-route worker — 2026-11-06 mods A/B, operation detector-mods-ab-1 (current; below is history)
+# Popup-route worker — 2026-11-06 ~04:00Z Task B cause FOUND (operator order ~02:25Z; current)
+
+Cause of the 15:32:57 desync: TrainingRooms 0.2.0-rc.2 (plugin, not a mod; not fixed, by order). Proven
+in Eden: dd-popup-ty1 (Yoga pair, a vanilla station 0, b TrainingRooms rc.2 + nro_hook + param_hook + the
+card's TR settings, station 1): b's practice active=true in the waiting room, never cleared in the battle;
+b's fighter ran off -> desync frame=837 on both. dd-popup-pos5 (Yoga, vanilla playbacks with diag
+playback_continue + position trace): vanilla console's recording 0 mismatches; TR console's recording
+first fails at 536: its KO'd fighter at (0,170) at KO+3 (536) vs vanilla KO+62 (595), same as the card
+(4151 vs 4210). Docs: docs/DISCONNECT-DIALOG.md "2026-11-06: what changed this console's positions".
+Branches: feat/disconnect-popup-route (docs/eden rows; release still rebuilds 92fbcf84);
+taskb/playback-continue 8def90b (diag switch only; release bytes 6493b38b by line numbers).
+Evidence: work folder evidence/ (manifest.json 750 entries; dd-popup-pos1/pos2/ty1/pos5 + tgz, taskb2/).
+Host state: no claim/Eden/job of this worker; run copies removed with manifests (pos1, pos2, pos3, pos4,
+pos5, ty1, tr2 on the Surface); worktree target removed (target-deletion-r6.json). Surface leftovers:
+popup-route-work (card copy, scripts, tgz), eden-runs dd-popup-{mods1,pos1,pos2,tr1,tr2} logs/out only.
+Yoga leftovers: eden-runs dd-popup-{ty1,pos3,pos4,pos5} logs/out only.
+Open (not established): whether the operator's TrainingRooms settings at 20:31Z still matched the 13:14Z
+capture (TR's own match-time logs were not in the 15:38 card capture), and the other console's state
+(only this console's recording exists; Eden shows a vanilla peer replays clean).
+
+# Popup-route worker — 2026-11-06 ~02:55Z Task B cause search (history)
+
+Order: find causes, fix nothing. Stage-mod branch NOT applicable (match on Yoshi's Island (Melee) BF form,
+no mod touches it; mods1 playbacks identical). Established so far (work folder popup-route/taskb2/):
+- Replay record format: FRAM records = u32 header (bits 8-15 player mask, bit 7 parity, bits 16-23 flag),
+  u32 position checksum, 8-byte input per masked player (replay_inputs.py). Checksum = u32 sum of all 8
+  slots' x/y/z float bit patterns (.135fc84-.135fd5c).
+- Run dd-popup-pos1 (Surface, 02:44-02:53Z, released clean): vanilla playback with sp+0x70:128 trace.
+  slot0 (Fox) KO'd at 4148, frozen at (240.6212, 74.0794) to 4151 in vanilla; the console's 4151 checksum
+  = vanilla with slot0 at (0.0, 170.0, 0) exactly: the console moved the dead fighter to the rebirth point
+  by 4151 (3 frames after the KO); vanilla had not. positions.py.
+- CPU pilot NOT driving P1: release build forces P1=Player at boot (runtime.rs:735-741); Deluxe log shows
+  only one overlay chord that boot (Hidden->Settings), never the pilot page (view 5).
+- Deluxe events: HocGate applying=1 from ~59 s before the match to ~15 s after; ClockSample 1788 MHz at
+  f~284; LatencyApplied 4/4 before the match; nothing else during it (deluxe_window.py).
+- Horizon-OC Smash profile (card-2026-11-02-hoc): CPU 1785, GPU 921/460, MEM 1862, undervolt, uncapped.
+- dd-popup-pos2 (diag 6bc2489a `playback_continue=1`, built r6 03:56Z; src change uncommitted, belongs on
+  a separate branch: release bytes change from 92fbcf84 to 6493b38b by line numbers): vanilla moves the
+  KO'd Fox to (0,170) at 4210 (KO+62) and descends; the console had it there at 4151 (KO+3), then not
+  vanilla's descent. => this console ran Fox's dead/rebirth with ~1-frame waits.
+- CAUSE (source): TrainingRooms 0.2.0-rc.2 (card NRO 23b89786 = Forgejo TrainingRoomsForUltimate
+  v0.2.0-rc.2, commit 36d7f46; source copy taskb2/trainingrooms-36d7f46). Its widened is_training() =
+  native Training || LOBBY_ACTIVE (runtime/scene.rs:35, model/scene.rs:21). LOBBY_ACTIVE is set/cleared
+  only by lobby::update() (runtime/lobby/training/lobby.rs:75-121), called only from the input-mapping
+  note hook for slot 0 (runtime/features/input_delay.rs:50-53). As station 1 (P2) nothing maps slot 0,
+  so the waiting-room practice flag stays true into the battle; states.rs:1148-1171 + model/state/
+  hooks.rs:29-45 then answer dead_rebirth_wait_frame=1 and rebirth_move/wait/invincible=0 (card settings
+  13:14Z: lobby_practice On, save_state_enable On, respawn_invincibility Off). Card frames files: the
+  desync match is the only one with local station 1 (flags 0x101); 7 others station 0, all normal ends.
+  TrainingRooms' own morning log shows the normal clear when station 0 (#561/#562 active=false at melee
+  0x0e). Deluxe audit (taskb2/deluxe-audit.md): no simulation writes; pilot inert (Stage::start).
+- In progress: Eden proof run dd-popup-tr1 (Surface pair: a vanilla first/host, b TrainingRooms rc.2 +
+  nro_hook + param_hook + card TR settings, second; b runs off stage; watch detectors). Up refused once
+  ("Compiler already active on host": TrainingRooms owner's cargo on the Surface); waiting for it.
+  pos1/pos2 evidence in evidence/dd-popup-pos{1,2} (+tgz), run copies removed with manifests.
+
+# Popup-route worker — 2026-11-06 mods A/B, operation detector-mods-ab-1 (history)
 
 Order: replay card match-0.bin with the card's ARCropolis (92171b2f) and the card's 7 mods (primary's
 read-only copy switch/card-20261105-mods, 586 files, sha256-checked), alone and with all 18 card plugins.
