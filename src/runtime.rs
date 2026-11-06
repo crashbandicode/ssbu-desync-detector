@@ -308,7 +308,12 @@ unsafe fn desync_detector_frame_check(ctx: &mut InlineCtx) {
                 force_desync_frame: Some(forced as u32),
             };
             let value = ctx.registers[11].w();
-            ctx.registers[11].set_w(model::diag_check_value(value, frame, &diag));
+            let stored = model::diag_check_value(value, frame, &diag);
+            ctx.registers[11].set_w(stored);
+            if stored != value {
+                // Once per boot: the next match runs unforced and can end normally.
+                FORCE_DESYNC_FRAME.store(u64::MAX, Ordering::Relaxed);
+            }
         }
     }
     DISCONNECT_EVIDENCE.frame(tick(), KIND_ONLINE, ctx.registers[19].x(), frame);

@@ -1,7 +1,7 @@
 {
   "game_id": "01006A800016E000",
   "start": "frontend-ready",
-  "about": "Popup route, second boot (2026-11-05): a same-host LAN Online pair; a runs the release candidate with trace points, b the diag build with force_desync_frame=600, so both consoles record a mismatch at frame 600 and the game ends the match on its own desync path. Segments and references come from the first boot (rows-y01.json).",
+  "about": "Popup route, pair with a normal session after the pop-up (2026-11-05): a runs the release candidate, b the diag build with force_desync_frame=600 (once per boot). Match 1 ends on the forced desync and the pop-up shows the reason on both; match 2 runs unforced with both players kept active (b runs off once so the timed match ends on time) and must end normally with desync_seen=0 at the same frame on both.",
   "setup": [
     {
       "state": "LAN Online on, TLS off",
@@ -120,19 +120,6 @@
       "sha256": "a66184f087ac3841bbecd7198f2adbc20ffab73d18c1ba2a84edecc4027c7ede",
       "recorded": "2026-11-05T22:39:09Z"
     },
-    "ok": {
-      "file": "segments/ok.edenmacro.json",
-      "cap": 20,
-      "recipe": [
-        {
-          "gap": 4,
-          "buttons": "a",
-          "hold": 150
-        }
-      ],
-      "sha256": "5a7b339ad93ed3b8dc5ab31e8e771ebd02aa73e8a1777d6beaa02da3f019175d",
-      "recorded": "2026-11-05T22:47:11Z"
-    },
     "to-vault": {
       "file": "segments/to-vault.edenmacro.json",
       "cap": 30,
@@ -148,19 +135,6 @@
           "gap": 6
         }
       ]
-    },
-    "smash-to-quickplay": {
-      "file": "segments/smash-to-quickplay.edenmacro.json",
-      "cap": 20,
-      "recipe": [
-        {
-          "hold": 150,
-          "buttons": "a",
-          "gap": 6
-        }
-      ],
-      "sha256": "c48fb0bcce639e2604675815007db52cee369b26eba1ad3551781169f5e0602b",
-      "recorded": "2026-11-05T22:49:56Z"
     },
     "back": {
       "file": "segments/back.edenmacro.json",
@@ -223,6 +197,45 @@
       ],
       "sha256": "17ca6bcc8d1da8732255d8fccc0b9a2e58cbf1cf8fb1938a1baab75701f8c8c8",
       "recorded": "2026-11-05T22:59:21Z"
+    },
+    "smash-to-quickplay": {
+      "file": "segments/smash-to-quickplay.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "hold": 150,
+          "buttons": "a",
+          "gap": 6
+        }
+      ],
+      "sha256": "c48fb0bcce639e2604675815007db52cee369b26eba1ad3551781169f5e0602b",
+      "recorded": "2026-11-05T22:49:56Z"
+    },
+    "tile-up": {
+      "file": "segments/tile-up.edenmacro.json",
+      "cap": 15,
+      "recipe": [
+        {
+          "gap": 1.5,
+          "buttons": "lstick,up",
+          "hold": 150
+        }
+      ],
+      "sha256": "231cdf48428a09acbc3ce7d76f4c0576ab4ad8646cf70b510fa36d11085b1187",
+      "recorded": "2026-11-05T23:57:51Z"
+    },
+    "ok": {
+      "file": "segments/ok.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "gap": 4,
+          "buttons": "a",
+          "hold": 150
+        }
+      ],
+      "sha256": "5a7b339ad93ed3b8dc5ab31e8e771ebd02aa73e8a1777d6beaa02da3f019175d",
+      "recorded": "2026-11-05T22:47:11Z"
     }
   },
   "gates": {
@@ -339,20 +352,6 @@
       "sha256": "a37b002d341e3bd6fc193614008a8950109662ce32c14d8d5edfb339f8edab6d",
       "acquired": "2026-11-05T22:58:40Z"
     },
-    "smash-online-menu": {
-      "kind": "image",
-      "reference": "refs/smash-online-menu.png",
-      "roi": [
-        40,
-        5,
-        300,
-        45
-      ],
-      "acquire": true,
-      "cap": 30,
-      "sha256": "65c79cde72778b301b37e25d2cdeaaa0a38b00f9af7a405ce6d8aab3d8721df0",
-      "acquired": "2026-11-05T22:49:49Z"
-    },
     "main-online": {
       "kind": "image",
       "reference": "refs/main-online.png",
@@ -419,6 +418,35 @@
       "source": "detector_log",
       "pattern": "communication_text reason=\\w+ text_units=\\d+ route=\\w+",
       "cap": 150
+    },
+    "online-equal-end": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "sync_end trigger=normal kind=1 frame=(\\d+) .*desync_seen=(\\d+)",
+      "on_all": [
+        "a",
+        "b"
+      ],
+      "equal": true,
+      "expect_groups": {
+        "2": "0"
+      },
+      "cap": 120,
+      "from_run": "p4r-shared",
+      "library": "online-equal-end"
+    },
+    "smash-online-menu": {
+      "kind": "image",
+      "reference": "refs/smash-online-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "cap": 30,
+      "sha256": "65c79cde72778b301b37e25d2cdeaaa0a38b00f9af7a405ce6d8aab3d8721df0",
+      "acquired": "2026-11-05T22:49:49Z"
     }
   },
   "rows": [
@@ -704,32 +732,312 @@
       ]
     },
     {
-      "id": "r06-look",
+      "id": "r06-requeue",
       "start": "popup",
-      "end": "after-popup",
-      "budget_min": 1,
+      "end": "matched",
+      "budget_min": 3,
       "steps": [
         {
-          "wait_ms": 8000,
-          "reason": "after the pop-up closes"
+          "reason": "a's CSS finishes loading",
+          "wait_ms": 8000
+        },
+        {
+          "shot": "css-loaded",
+          "on": "a"
+        },
+        {
+          "unchecked": true,
+          "on": "a",
+          "play": "tile-up"
+        },
+        {
+          "gate": "css-tile",
+          "on": "a"
         },
         {
           "on": "a",
-          "shot": "after-popup"
+          "play": "pick"
+        },
+        {
+          "gate": "ready-banner",
+          "on": "a"
+        },
+        {
+          "on": "a",
+          "play": "ready"
+        },
+        {
+          "gate": "smash-online-menu",
+          "on": "b"
         },
         {
           "on": "b",
-          "shot": "after-popup"
+          "play": "smash-to-quickplay"
+        },
+        {
+          "run": "steps.py:press_until",
+          "args": {
+            "wait_s": 3.0,
+            "reference": "refs/quickplay-menu.png",
+            "roi": [
+              40,
+              5,
+              300,
+              45
+            ],
+            "tries": 2,
+            "button": "a"
+          },
+          "on": "b",
+          "check": true
+        },
+        {
+          "gate": "quickplay-menu",
+          "on": "b"
+        },
+        {
+          "on": "b",
+          "play": "to-css"
+        },
+        {
+          "gate": "css-tile",
+          "on": "b"
+        },
+        {
+          "on": "b",
+          "play": "pick"
+        },
+        {
+          "gate": "ready-banner",
+          "on": "b"
+        },
+        {
+          "on": "b",
+          "play": "ready"
+        },
+        {
+          "gate": "matched",
+          "on": "a"
+        },
+        {
+          "shot": "match2",
+          "on": "a"
+        },
+        {
+          "shot": "match2",
+          "on": "b"
+        }
+      ],
+      "note": "Attempt 2: in attempt 1 press_until compared a crop with a full-size reference and pressed A twice, which took a into the CSS; a continues from the CSS, b from the Online Smash menu."
+    },
+    {
+      "id": "r07-match2",
+      "start": "matched",
+      "end": "matched",
+      "budget_min": 9,
+      "steps": [
+        {
+          "unchecked": true,
+          "play": "ok",
+          "on": "a"
+        },
+        {
+          "wait_ms": 5000,
+          "reason": "next pop-up"
+        },
+        {
+          "shot": "after-ok-1",
+          "on": "a"
+        },
+        {
+          "unchecked": true,
+          "play": "ok",
+          "on": "a"
+        },
+        {
+          "wait_ms": 6000,
+          "reason": "menu loads"
         },
         {
           "on": "a",
-          "as": "events-a-after",
+          "gate": "smash-online-menu"
+        },
+        {
+          "play": "smash-to-quickplay",
+          "on": "a"
+        },
+        {
+          "args": {
+            "roi": [
+              40,
+              5,
+              300,
+              45
+            ],
+            "button": "a",
+            "reference": "refs/quickplay-menu.png",
+            "wait_s": 3.0,
+            "tries": 2
+          },
+          "check": true,
+          "run": "steps.py:press_until",
+          "on": "a"
+        },
+        {
+          "on": "a",
+          "gate": "quickplay-menu"
+        },
+        {
+          "play": "to-css",
+          "on": "a"
+        },
+        {
+          "on": "a",
+          "gate": "css-tile"
+        },
+        {
+          "play": "pick",
+          "on": "a"
+        },
+        {
+          "on": "a",
+          "gate": "ready-banner"
+        },
+        {
+          "play": "ready",
+          "on": "a"
+        },
+        {
+          "unchecked": true,
+          "play": "ok",
+          "on": "b"
+        },
+        {
+          "wait_ms": 5000,
+          "reason": "next pop-up"
+        },
+        {
+          "shot": "after-ok-1",
+          "on": "b"
+        },
+        {
+          "unchecked": true,
+          "play": "ok",
+          "on": "b"
+        },
+        {
+          "wait_ms": 6000,
+          "reason": "menu loads"
+        },
+        {
+          "on": "b",
+          "gate": "smash-online-menu"
+        },
+        {
+          "play": "smash-to-quickplay",
+          "on": "b"
+        },
+        {
+          "args": {
+            "roi": [
+              40,
+              5,
+              300,
+              45
+            ],
+            "button": "a",
+            "reference": "refs/quickplay-menu.png",
+            "wait_s": 3.0,
+            "tries": 2
+          },
+          "check": true,
+          "run": "steps.py:press_until",
+          "on": "b"
+        },
+        {
+          "on": "b",
+          "gate": "quickplay-menu"
+        },
+        {
+          "play": "to-css",
+          "on": "b"
+        },
+        {
+          "on": "b",
+          "gate": "css-tile"
+        },
+        {
+          "play": "pick",
+          "on": "b"
+        },
+        {
+          "on": "b",
+          "gate": "ready-banner"
+        },
+        {
+          "play": "ready",
+          "on": "b"
+        },
+        {
+          "on": "a",
+          "gate": "matched"
+        },
+        {
+          "shot": "match3",
+          "on": "a"
+        },
+        {
+          "shot": "match3",
+          "on": "b"
+        }
+      ],
+      "note": "Attempt 1: Down + ZL keep-alive; both were dropped for inactivity at about 55 s (frame_gap a 3226, b 3444; pop-up \"You have been disconnected due to inactivity.\"). Attempt 2: dismiss both pop-ups, requeue for match 3."
+    },
+    {
+      "id": "r08-match3",
+      "start": "matched",
+      "end": "normal-end",
+      "budget_min": 5,
+      "steps": [
+        {
+          "args": {
+            "peer": "b",
+            "cap_s": 330,
+            "walkoff_s": 6.0
+          },
+          "run": "steps.py:keepalive_until_end",
+          "on": "a"
+        },
+        {
+          "on": "a",
+          "gate": "online-equal-end"
+        },
+        {
+          "wait_ms": 5000,
+          "reason": "results screen"
+        },
+        {
+          "shot": "results",
+          "on": "a"
+        },
+        {
+          "shot": "results",
+          "on": "b"
+        },
+        {
+          "on": "a",
+          "as": "events-a",
           "copy": "detector_log"
         },
         {
           "on": "b",
-          "as": "events-b-after",
+          "as": "events-b",
           "copy": "detector_log"
+        },
+        {
+          "on": "a",
+          "as": "trace-a",
+          "copy": "trace_jsonl"
         }
       ]
     }

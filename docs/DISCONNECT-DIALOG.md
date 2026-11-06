@@ -21,7 +21,7 @@ Branch `feat/disconnect-popup-route` adds a second route, `plain`, hooked at
 one hook body (`append_in_frame`) and the same reason, filter and append
 rules. Install line: `dialog=installed text_routes=args,plain`; event:
 `communication_text … route=plain`. Sites, guards and the card scan:
-[HOOKS.md](HOOKS.md). Release build `b5fa80f8` (57,344 bytes, 136 KiB
+[HOOKS.md](HOOKS.md). Release build `92fbcf84` (57,344 bytes, 136 KiB
 resident); host tests, clippy, no-default-features, release and diag builds
 pass.
 
@@ -50,7 +50,18 @@ cursor only (runs in `/home/intpa/eden-runs/`):
   reason. The argument route's point did not fire. Consoles: no panic,
   abort, crash or Unmapped line; a's unmapped-access total 0.
 
-The argument route (`.37ad8e8`) installed in both boots and passes the host
+- `dd-popup-y05`: a ran release `92fbcf84` (the final source; it differs
+  from `b5fa80f8` only in its build ID and four panic line numbers), b the
+  diag build `45a6b424`, which now forces the desync once per boot. Match 1
+  repeated `dd-popup-y03` (pop-up with the reason, `route=plain`, on both).
+  Match 3 ran unforced to its 2:00 time limit with varied input on both
+  (down + shield alone was dropped for inactivity in match 2) and ended
+  normally on both at the same frame: `sync_end trigger=normal kind=1
+  frame=7521 … desync_seen=0`, `peer_end reason=1`, `not_kept
+  reason=normal_end`, no `communication_text`. Consoles clean, a's
+  unmapped-access total 0.
+
+The argument route (`.37ad8e8`) installed in every boot and passes the host
 tests; no pop-up with arguments and a communication-error sentence appeared,
 so it did not run in Eden.
 
@@ -80,15 +91,24 @@ python3 -I -B tools/stream_attribution.py <trace.jsonl> --frame 4348 --ours 0x77
   with one more `sound` draw: the first checked difference between the two
   consoles is one extra `sound` draw on the other console at frame 4348.
 
+- With the card's own plugin set instead (run `dd-popup-ab1`: the 18 NROs
+  of the 2026-11-05 06:45 copy, the card's detector `02488cdc` among them,
+  and the card's Deluxe `config.ini`; no mods), the playback stopped at the
+  same frame with the same values (`playback_mismatch frame=4151
+  computed=0xa417d4d4 recorded=0x613d0d23`), the referee gave the same
+  verdict, and the stream reconstruction gave the same result.
+
 Established: with the same inputs, this console's simulated positions
 differed from an unmodded game's by frame 4151 while the checked RNG still
 agreed; 197 frames later one `sound` draw differed between the consoles
 (the stream behind launch voices and `PLAY_SEQUENCE` variants,
-[WHAT-IS-CHECKED](WHAT-IS-CHECKED.md)). Not established: what changed this
-console's positions. The card held 18 plugins at the time (the 2026-11-05
-06:45 copy) and ARCropolis with whatever is in `ultimate/mods`, which the
-capture does not include. Deciding it takes the same replay in Eden with
-the card's plugin set and mods, then bisecting.
+[WHAT-IS-CHECKED](WHAT-IS-CHECKED.md)). The card's 18 plugins, as they run
+during a replay playback with the card's Deluxe settings, do not reproduce
+this console's positions either. Not established: what changed them. Left
+open are ARCropolis mods in `ultimate/mods` (not in the capture), plugin
+behaviour that runs only online (a playback cannot show it), and the
+console itself. The next evidence is a listing and copy of the card's
+`ultimate/mods`, then the same replay with them.
 
 ## 2026-11-03
 

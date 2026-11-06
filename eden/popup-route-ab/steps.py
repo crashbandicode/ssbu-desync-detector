@@ -1,0 +1,175 @@
+"""Project step hooks for the popup-route Eden runs (tools/eden-runner StepContext)."""
+import shutil
+from pathlib import Path
+
+
+def copy_detector_folder(ctx, name='detector'):
+    """Copy the instance's whole detector folder (events logs, frames-N.bin, match-N.bin) into the row
+    folder, so the frame files survive the lifecycle's profile restore at Down."""
+    source = Path(ctx.instance['detector_log']).parent
+    target = Path(ctx.row_dir) / f'{ctx.on}-{name}'
+    target.mkdir(parents=True, exist_ok=True)
+    copied = []
+    for path in sorted(source.iterdir()):
+        if path.is_file():
+            shutil.copy2(path, target / path.name)
+            copied.append(f'{path.name}:{path.stat().st_size}')
+    ctx.log({'copied_detector_folder': str(target), 'files': copied})
+    return copied
+
+
+def to_main(ctx, reference='/home/intpa/ssbu-mod-playbook/tools/eden-runner/library/refs/main.png',
+            roi=(150, 265, 450, 335), tolerance=8, tries=6, wait_s=4.0):
+    """From the opening movie, the attract demo or the title to the main menu: check the library main-menu
+    reference; if it does not match, press + (skips a movie or the title; no action on the main menu) and
+    look again. Every look is kept as a screenshot."""
+    import time
+    diffs = []
+    for attempt in range(tries + 1):
+        path = ctx.shot(f'to-main-{attempt}')
+        diff = ctx.runner.roi_diff(path, reference, list(roi), True)
+        diffs.append(round(diff, 1))
+        if diff <= tolerance:
+            ctx.log({'to_main': 'main', 'attempt': attempt, 'diffs': diffs})
+            return {'attempt': attempt, 'diffs': diffs}
+        if attempt < tries:
+            ctx.press('plus', 150)
+            time.sleep(wait_s)
+    raise RuntimeError(f'main menu not reached after {tries} presses; diffs {diffs}')
+
+
+# 13.0.5: the RNG manager slot (`*(*(main+0x52c35b0))` is the manager, its first word the stream array of
+# nine 0x14-byte xorshift128 states, check word at +0xc), the replay playback check and the replay frame index
+# (game x27 +0x590 -> player, +0x200078), as in src/model.rs.
+RNG_MANAGER = 0x52c35b0
+PLAYBACK_CHECK = 0x135fd60
+STREAMS_BYTES = 9 * 0x14
+
+
+def _main_base(modules):
+    """The main module's base from modules.list, whatever its exact shape."""
+    entries = modules.get('modules', modules) if isinstance(modules, dict) else modules
+    for entry in entries or []:
+        name = str(entry.get('name') or entry.get('module') or '')
+        if name == 'main' or name.startswith('main') and 'nro' not in name:
+            for key in ('base', 'start', 'address', 'load_base'):
+                if entry.get(key) is not None:
+                    value = entry[key]
+                    return int(value, 16) if isinstance(value, str) else int(value)
+    raise RuntimeError(f'no main module in modules.list: {str(modules)[:400]}')
+
+
+def _arm(ctx, on, point):
+    result = ctx.runner.call(on, 'trace.arm', point)
+    ctx.log({'armed': point, 'on': on, 'result': result})
+    return result
+
+
+def arm_popup_trace(ctx, on=None, read_back=False):
+    """Live points on `on` (default this instance). A capture expression's value is the address read.
+    1. pop-up body text .1eef640: label (x1) and the argument vector's begin/end (x2) -> which branch;
+    2. plain route .377a250 when .377a120 was called by the pop-up body (saved LR .1eef838): the text and count;
+    3. the args route's caller .37a2660 when called by the pop-up body (LR .1eef850): label;
+    4. the pane setter .37a2270 for a text starting "A co": the text it receives and its count."""
+    on = on or ctx.on
+    base = _main_base(ctx.runner.call(on, 'modules.list'))
+    points = [
+        {'target': 'main+0x1eef640', 'registers': ['x0', 'x1', 'x2', 'x30'], 'backtrace': True,
+         'captures': [{'expression': 'x1', 'type': 'c-string(96)'}, {'expression': 'x2', 'type': 'u64'},
+                      {'expression': 'x2+8', 'type': 'u64'}]},
+        {'target': 'main+0x377a250', 'registers': ['x0', 'x29', 'sp'], 'backtrace': True,
+         'condition': f'[sp+0x1158] == 0x{base + 0x1eef838:x}',
+         'captures': [{'expression': 'sp+0x120:320', 'type': 'bytes'}]},
+        {'target': 'main+0x37a2660', 'registers': ['x0', 'x1', 'x2', 'x30'], 'backtrace': True,
+         'condition': f'x30 == 0x{base + 0x1eef850:x}',
+         'captures': [{'expression': 'x1', 'type': 'c-string(96)'}]},
+        {'target': 'main+0x37a2270', 'registers': ['x0', 'x1', 'x2', 'x3', 'x30'], 'backtrace': True,
+         'condition': '[x1] == 0x6f006300200041',
+         'captures': [{'expression': 'x1:400', 'type': 'bytes'}]},
+    ]
+    results = [_arm(ctx, on, point) for point in points]
+    return {'main_base': hex(base), 'armed': results}
+
+
+def _new_lines(path, start):
+    with open(path, 'rb') as handle:
+        handle.seek(start)
+        return handle.read().decode('utf-8', 'replace')
+
+
+def keepalive_then_drop(ctx, run_s=14, wait_cap=200, peer='b', after_s=6,
+                        pattern=r'communication_text|sync_end|peer_end'):
+    """Both players shield-tap (ZL) for run_s so neither is dropped for inactivity; then `peer` is paused and
+    this instance keeps tapping until its detector logs one of `pattern` (the session's end), then stops
+    input (so the pop-up stays) and waits after_s for it to settle. Returns the matched lines."""
+    import os
+    import re
+    import time
+
+    def tap(on):
+        ctx.runner.call(on, 'input.button', {'button': 'zl', 'state': 'tap', 'duration_ms': 100, 'lease_ms': 600})
+
+    log = ctx.instance['detector_log']
+    start = os.path.getsize(log)
+    end = time.monotonic() + run_s
+    while time.monotonic() < end:
+        ctx.check_stop()
+        tap(ctx.on)
+        tap(peer)
+        time.sleep(0.7)
+    ctx.runner.call(peer, 'game.pause', {})
+    ctx.log({'paused': peer, 'after_s': run_s})
+    found = []
+    until = time.monotonic() + wait_cap
+    while time.monotonic() < until and not found:
+        ctx.check_stop()
+        found = [line for line in _new_lines(log, start).splitlines() if re.search(pattern, line)]
+        if not found:
+            tap(ctx.on)
+            time.sleep(0.8)
+    time.sleep(after_s)
+    found = [line for line in _new_lines(log, start).splitlines() if re.search(pattern, line)]
+    ctx.log({'session_end_lines': found})
+    if not found:
+        raise RuntimeError(f'no {pattern!r} on {ctx.on} within {wait_cap} s after pausing {peer}')
+    return found
+
+
+def read_trace(ctx, on=None, name='trace'):
+    """Save every in-memory trace record of `on` (points armed live, no JSONL there) into the row folder."""
+    import json
+    on = on or ctx.on
+    records, after = [], '0'
+    for _ in range(20):
+        page = ctx.runner.call(on, 'trace.read', {'after': after, 'limit': 512}) or {}
+        batch = page.get('records') or []
+        records += batch
+        nxt = page.get('next')
+        if not batch or not nxt or nxt == after:
+            break
+        after = nxt
+    path = Path(ctx.row_dir) / f'{on}-{name}.json'
+    path.write_text(json.dumps(records, indent=1))
+    ctx.log({'trace_records': len(records), 'on': on, 'path': str(path)})
+    return len(records)
+
+
+def arm_rng_trace(ctx):
+    """Arm a per-frame point on the playback check: the replay frame index, the computed position checksum (w8)
+    and the nine RNG stream states, so a desync's stream can be read off the vanilla playback."""
+    base = _main_base(ctx.call('modules.list'))
+    slot = base + RNG_MANAGER
+    point = {
+        'target': f'main+0x{PLAYBACK_CHECK:x}',
+        'registers': ['x8', 'x22', 'x27'],
+        # A capture expression's value is the address read: player+0x200078, and the stream array
+        # (slot -> pointer -> manager -> array).
+        'captures': [
+            {'expression': '[x27+0x590]+0x200078', 'type': 'u32'},
+            {'expression': f'[[[0x{slot:x}]]]:{STREAMS_BYTES}', 'type': 'bytes'},
+        ],
+        'rate_limit': 1000,
+    }
+    result = ctx.call('trace.arm', point)
+    ctx.log({'armed_rng_trace': point, 'main_base': hex(base), 'result': result})
+    return {'main_base': hex(base), 'result': result}

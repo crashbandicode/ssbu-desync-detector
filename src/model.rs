@@ -182,9 +182,9 @@ pub fn xor_words(bytes: &[u8]) -> u32 {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Diag {
     /// The online frame whose check value this console stores with its low
-    /// bit flipped. Both consoles then record a mismatch at that frame and
-    /// the game ends the session on its own desync path; the simulation
-    /// itself is untouched.
+    /// bit flipped, once per boot (the first session that reaches it). Both
+    /// consoles then record a mismatch at that frame and the game ends the
+    /// session on its own desync path; the simulation itself is untouched.
     pub force_desync_frame: Option<u32>,
 }
 

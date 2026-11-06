@@ -59,6 +59,74 @@ def _main_base(modules):
     raise RuntimeError(f'no main module in modules.list: {str(modules)[:400]}')
 
 
+def press_until(ctx, reference, roi, button='a', tries=3, wait_s=3.0, tolerance=8):
+    """Look first; while the screen's region does not match `reference`, press `button` (a pop-up's OK) and
+    look again. No press when the screen already matches. Every look is kept as a screenshot."""
+    import time
+    base = Path(ctx.runner.base)
+    path_ref = reference if Path(reference).is_absolute() else str(base / reference)
+    from PIL import Image
+    with Image.open(path_ref) as image:
+        ref_is_roi = image.size == (roi[2] - roi[0], roi[3] - roi[1])
+    diffs = []
+    for attempt in range(tries + 1):
+        path = ctx.shot(f'press-until-{attempt}')
+        diff = ctx.runner.roi_diff(path, path_ref, list(roi), ref_is_roi)
+        diffs.append(round(diff, 1))
+        if diff <= tolerance:
+            ctx.log({'press_until': reference, 'attempt': attempt, 'diffs': diffs})
+            return {'attempt': attempt, 'diffs': diffs}
+        if attempt < tries:
+            ctx.press(button, 150)
+            time.sleep(wait_s)
+    raise RuntimeError(f'{reference} not reached after {tries} presses; diffs {diffs}')
+
+
+def keepalive_until_end(ctx, peer='b', cap_s=300, pattern=r'sync_end trigger=\w+', walkoff_s=0.0):
+    """Both players get varied input every 0.7 s (walk left, walk right, jump, shield) so neither is dropped
+    for inactivity (Down + ZL taps alone were dropped in dd-popup-y05), until both detectors log the
+    session's end (or cap_s). Then input is released. With
+    walkoff_s, `peer` first runs right that long (off the stage: one self-destruct), so a timed match
+    ends on time instead of a 0-0 sudden death."""
+    import os
+    import re
+    import time
+    logs = {on: ctx.runner.instances[on]['detector_log'] for on in (ctx.on, peer)}
+    starts = {on: os.path.getsize(path) for on, path in logs.items()}
+    ended = {}
+    begun = time.monotonic()
+    until = begun + cap_s
+    step_index = 0
+    try:
+        while time.monotonic() < until and len(ended) < len(logs):
+            ctx.check_stop()
+            # Varied input (Eden's LAN notes: Quickplay drops a player whose input does not vary): a short
+            # walk left, a short walk right, a jump, a shield, in turn.
+            kind = step_index % 4
+            step_index += 1
+            for on in logs:
+                if on == peer and time.monotonic() - begun < walkoff_s:
+                    ctx.runner.call(on, 'input.stick', {'stick': 'left', 'x': 1, 'y': 0, 'lease_ms': 1500})
+                elif kind in (0, 1):
+                    ctx.runner.call(on, 'input.stick', {'stick': 'left', 'x': -1 if kind == 0 else 1, 'y': 0,
+                                                        'lease_ms': 250})
+                else:
+                    ctx.runner.call(on, 'input.button', {'button': 'x' if kind == 2 else 'zl', 'state': 'tap',
+                                                         'duration_ms': 100, 'lease_ms': 600})
+            time.sleep(0.7)
+            for on, path in logs.items():
+                found = [line for line in _new_lines(path, starts[on]).splitlines() if re.search(pattern, line)]
+                if found:
+                    ended[on] = found[0]
+    finally:
+        for on in logs:
+            ctx.runner.call(on, 'input.reset')
+    ctx.log({'session_end': ended})
+    if len(ended) < len(logs):
+        raise RuntimeError(f'no session end on {sorted(set(logs) - set(ended))} within {cap_s} s')
+    return ended
+
+
 def _arm(ctx, on, point):
     result = ctx.runner.call(on, 'trace.arm', point)
     ctx.log({'armed': point, 'on': on, 'result': result})
