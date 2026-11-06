@@ -194,6 +194,163 @@ def run_off_and_watch(ctx, mover='b', peer='a', run_s=4.0, fall_s=4.0, direction
     return found
 
 
+def _chord(ctx, holds, tap, hold_ms=500, tap_ms=120):
+    """Hold `holds` (pressed in order), tap `tap`, release: Deluxe's L+R+Down, ZR+Right, the tile cursor's L3+D-pad."""
+    import time
+    for button in holds:
+        ctx.call('input.button', {'button': button, 'state': 'press', 'lease_ms': hold_ms + 800})
+        time.sleep(0.05)
+    time.sleep(0.08)
+    ctx.call('input.button', {'button': tap, 'state': 'tap', 'duration_ms': tap_ms, 'lease_ms': tap_ms + 400})
+    time.sleep(tap_ms / 1000 + 0.1)
+    for button in reversed(holds):
+        ctx.call('input.button', {'button': button, 'state': 'release'})
+
+
+def _deluxe_view(ctx):
+    """Deluxe's last OverlayView row (code 23: `seq tick 23 a b`, b = the resulting view; 0 hidden, 1 settings,
+    5 a plugin's own page, 6 window options), or None."""
+    import re
+    path = ctx.runner.instances[ctx.on].get('deluxe_log')
+    if not path or not Path(path).exists():
+        return None
+    view = None
+    for line in Path(path).read_text(errors='replace').splitlines():
+        match = re.match(r'^\d+ \d+ 23 0x[0-9a-f]+ 0x([0-9a-f]+)$', line.strip())
+        if match:
+            view = int(match.group(1), 16)
+    return view
+
+
+def deluxe_to_view(ctx, want=5, tries=5, wait_s=1.0):
+    """L+R+Down until Deluxe logs `want` as its view (5: the first plugin's own page in the card's cycle,
+    Settings -> own pages -> Window Options -> hidden). Every page is kept as a screenshot; nothing else is
+    pressed, so no setting changes here."""
+    import time
+    seen = []
+    for attempt in range(tries):
+        view = _deluxe_view(ctx)
+        seen.append(view)
+        if view == want:
+            ctx.shot(f'deluxe-view-{want}')
+            ctx.log({'deluxe_to_view': want, 'seen': seen})
+            return {'view': view, 'seen': seen}
+        _chord(ctx, ('l', 'r'), 'down')
+        time.sleep(wait_s)
+        ctx.shot(f'deluxe-page-{attempt}')
+    raise RuntimeError(f'Deluxe view {want} not reached; views seen {seen}')
+
+
+def pilot_p1_cpu(ctx, wait_s=1.5):
+    """On the CPU Pilot page (P1 row selected): ZR+Right switches P1 Player -> CPU; the pilot saves its INI with
+    `p1=cpu`. Then L+R+Down until Deluxe's window is hidden (view 0)."""
+    import time
+    ini = Path(ctx.runner.instances[ctx.on]['pilot_ini'])
+    _chord(ctx, ('zr',), 'right')
+    time.sleep(wait_s)
+    ctx.shot('pilot-p1')
+    text = ini.read_text(errors='replace') if ini.exists() else ''
+    if 'p1=cpu' not in text:
+        raise RuntimeError(f'pilot INI does not say p1=cpu after ZR+Right: {text!r}')
+    views = []
+    for _ in range(4):
+        if _deluxe_view(ctx) == 0:
+            break
+        _chord(ctx, ('l', 'r'), 'down')
+        time.sleep(1.0)
+        views.append(_deluxe_view(ctx))
+    ctx.shot('deluxe-closed')
+    ctx.log({'pilot_p1_cpu': text.strip(), 'closing_views': views})
+    return {'ini': text.strip(), 'closing_views': views}
+
+
+def _tile_state(ctx):
+    """The tile cursor's last `settled screen=css at=<i> hovered=<i>` (as ints, or None)."""
+    import re
+    path = Path(ctx.runner.instances[ctx.on]['tile_log'])
+    last = None
+    for line in path.read_text(errors='replace').splitlines():
+        match = re.search(r'settled screen=css at=(\d+|none) hovered=(\d+|none)', line)
+        if match:
+            last = tuple(None if g == 'none' else int(g) for g in match.groups())
+    return last
+
+
+def pick_tile(ctx, target, width=13, max_steps=45, wait_s=0.7):
+    """Character select with the tile cursor: step P1's hand (L3 + D-pad, one tile per step) to tile `target`, then
+    A to place the token. Rows are `width` tiles (tile // width; the last row is shorter and centred: 86 tiles on
+    the Eden profiles are six rows of 13 and 78-85). Up/Down first to the target's row, then Left/Right. Every
+    step is read back from the tile cursor's own log."""
+    import time
+    path = []
+    for _ in range(max_steps):
+        state = _tile_state(ctx)
+        current = state[1] if state else None
+        path.append(current)
+        if current == target:
+            ctx.shot(f'tile-{target}')
+            ctx.press('a', 150)
+            time.sleep(1.5)
+            ctx.log({'pick_tile': target, 'path': path, 'width': width})
+            return {'target': target, 'path': path, 'width': width}
+        if current is None:
+            direction = 'up'
+        elif current // width > target // width:
+            direction = 'up'
+        elif current // width < target // width:
+            direction = 'down'
+        elif target > current:
+            direction = 'right'
+        else:
+            direction = 'left'
+        _chord(ctx, ('lstick',), direction, hold_ms=300, tap_ms=150)
+        time.sleep(wait_s)
+    raise RuntimeError(f'tile {target} not reached; path {path}')
+
+
+def watch_matches(ctx, peer='b', cap_s=900, idle_s=150, stop_on_desync=True):
+    """No input (each console's CPU pilot plays P1). Watches both detectors: online sessions, normal ends,
+    desyncs, and the frames each session reached. Returns when a desync is seen (stop_on_desync), when no new
+    session starts within idle_s of the last end (no rematch), or at cap_s."""
+    import os
+    import re
+    import time
+    runner = ctx.runner
+    logs = {on: runner.instances[on]['detector_log'] for on in (ctx.on, peer)}
+    starts = {on: os.path.getsize(path) for on, path in logs.items()}
+    began = time.monotonic()
+    last_change = began
+    summary = {}
+    while time.monotonic() - began < cap_s:
+        ctx.check_stop()
+        time.sleep(5)
+        new = {on: _new_lines(path, starts[on]).splitlines() for on, path in logs.items()}
+        current = {}
+        for on, lines in new.items():
+            current[on] = {
+                'sessions': len([l for l in lines if re.search(r'session slot=\d+ kind=online', l)]),
+                'ends': [l.split(' ', 1)[1] for l in lines if 'sync_end' in l],
+                'desyncs': [l.split(' ', 1)[1] for l in lines if re.search(r'desync frame=\d+', l)],
+            }
+        if current != summary:
+            summary = current
+            last_change = time.monotonic()
+        if stop_on_desync and any(v['desyncs'] for v in summary.values()):
+            time.sleep(10)
+            break
+        # The watch starts inside a session whose start line came before it: one more session than counted.
+        ended = all(v['ends'] and len(v['ends']) >= v['sessions'] + 1 for v in summary.values()) if summary else False
+        if ended and time.monotonic() - last_change > idle_s:
+            break
+    frames = {}
+    for on, info in summary.items():
+        frames[on] = [int(m.group(1)) for e in info['ends'] for m in [re.search(r'frame=(\d+)', e)] if m]
+    result = {'seconds': round(time.monotonic() - began), 'summary': summary, 'end_frames': frames,
+              'match_minutes': {on: round(sum(f) / 3600, 2) for on, f in frames.items()}}
+    ctx.log({'watch_matches': result})
+    return result
+
+
 def probe_input(ctx, buttons=('b',), hold_ms=300, settle_s=2.5):
     """Diagnose a screen that ignores a segment: tap each button with input.button, keep its full reply (the
     engine's accepted/observed/frontend/gated status) and a screenshot after it settles."""

@@ -1,0 +1,257 @@
+{
+  "owner": "Claude fa2f179b/popup-route",
+  "label": "template",
+  "host": "yoga",
+  "hostname": "yoga-ubuntu",
+  "ledger": "/tmp/deluxe-surface-1007/OWNER-COORDINATION.md",
+  "display_helper": {
+    "path": "/home/intpa/eden-nso-autolan/live-tools/display-rootful.ps1",
+    "sha256": "a930b7a6dcb6c7401afb8bbbb2c918ee9b09219a1cd64b4af862938c094e2cff"
+  },
+  "work_root": "/home/intpa/popup-route-work/template/work",
+  "state_dir": "/home/intpa/popup-route-work/template/state",
+  "pair_authorized": true,
+  "defer_load": true,
+  "runner": {
+    "path": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/runner.py",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "rows": {
+    "path": "/home/intpa/popup-route-work/template/rows.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "runtime": 5400,
+  "socket_cap": 90,
+  "load_cap": 180,
+  "stop_cap": 30,
+  "force_cap": 30,
+  "authorization": "Primary addendum 2026-11-06 (detector-stage-pilot-1): plugin branch live; Yoga (no pool-defer claim open) LAN Quickplay pair, CPU pilot playing both sides; arm C: the card's plugins without TrainingRooms on both consoles; detector on both. No card access, no install.",
+  "instances": [
+    {
+      "key": "a",
+      "display": ":116",
+      "source": "/home/intpa/trainingrooms-eden-lead-astra4/profiles/y",
+      "app": {
+        "path": "/home/intpa/Applications/Eden-GIF/20261104-f916cf4b8c68-unmapped-stop-fefd2b5f0cfc/Eden.AppImage",
+        "sha256": "fefd2b5f0cfcc5ed5426e7b0ce1d91fe25060024c861b8ff1dfc7814462ca4fd"
+      },
+      "game": "/home/intpa/Games/Roms/Switch/Super Smash Bros. Ultimate [01006A800016E000]+[v13.0.3+ 9DLC][US](nsw2u.com).xci",
+      "plugins": [
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libarcropolis.nro",
+          "sha256": "92171b2f4dbd7afe9361a55922f01de7f46ffae09f05185c1cea4ab79dba9a1c"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libcss_preserve.nro",
+          "sha256": "82862d00139bfeaf67cc922c90b285fbe71378a78fedec7e6eeb6d4a7ef8d4f9"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libelite_rematch.nro",
+          "sha256": "4f13fd146a0b87a288df7a63823966a49d1f08afa6d69fd6a37dbe0bf62618db"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libelite_stages_counterpick.nro",
+          "sha256": "584a3699185e984324281f4d8518ea3a03830606a135889cea2daf6ba74f0db2"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libgsp_visualizer.nro",
+          "sha256": "879ef69bb186f07b1c7be0b93fb570a92b81522fcfd9b5ee301984c82b64d348"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libimgui_smash.nro",
+          "sha256": "d8e987fea04f70f680838a293f2f3834517490e608f8ecc60fbed55fbcc3d5b6"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libinstant_back.nro",
+          "sha256": "bdb0abb070089639d8f73b9c8a6b2bcc297883a8414fd5316a25d4bb064e5e14"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libmemory_guard.nro",
+          "sha256": "b2de129af559c303dfa40635b37cd40f160635385d4d8a73b6dda45172c0990d"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libnro_hook.nro",
+          "sha256": "ca7aec03aee49fea539dcb92569fea5bc5389f77377ba2a30e4d0b7ebd0255e6"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libparam_hook.nro",
+          "sha256": "3ed7a2945084176cbb7742d99878f1e8d3a0992feb0fef74be2cfbc68ac8fb88"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libsmash_gamepad_overlay.nro",
+          "sha256": "a7fba17917be6c69e7b20cbf79fe21f3a9897f59c673e4e61a067b818e8b2db6"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libsmash_replay_to_mp4.nro",
+          "sha256": "c3873f120e4c760df3bea051652daa20bd1d0cd3a9b319865f7e6ba507f429d0"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libssbu_cpu_pilot.nro",
+          "sha256": "ed8f308f695842a9e5f1728f829cfe8e325c0aa98dee79c875358ad435d7dfea"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libssbu_desync_detector.nro",
+          "sha256": "02488cdc8e0e4ab2a3da0cd83cc2b2e363ef00c6e714227599675b7da43e82ee"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libssbu_online_deluxe_rewrite.nro",
+          "sha256": "bc8a64283285b7627ec836e1ba5826de553447dfe3a84620464269644cd450df"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libssbu_quiet_elite_switch.nro",
+          "sha256": "c65d9cc26d4d31c96dfb9022eee11ea4986c2cd6905bd34ba04e25d33a0954fd"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libssbu_refresh_clock.nro",
+          "sha256": "1246f448fcd42092423ff9df51b7eaade806f95ec3da460ba51cf8f2576ff3c0"
+        },
+        {
+          "path": "/home/intpa/trainingrooms-eden-pkg6/nro/aid/libssbu_tile_cursor.nro",
+          "sha256": "b8313ca2e66a52f1bcfc4afc764df1b7cdc5aee7e194bdea671cea02746934bc"
+        }
+      ],
+      "files": [
+        {
+          "path": "/home/intpa/ssbu-cpu-pilot-work/switch/card-20261105-1538/ultimate/ssbu_online_deluxe_rewrite/config.ini",
+          "sha256": "985a091da90c7eb69981264e3445d41c19050610e2b394eb11c6bf06d8064a90",
+          "to": "user/sdmc/ultimate/ssbu_online_deluxe_rewrite/config.ini"
+        },
+        {
+          "path": "/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/taskb2/pilot-config.ini",
+          "sha256": "45605d90ffa4e3004763074e1ebbeffe906f04d8b796cbad932f1207eb4e766b",
+          "to": "user/sdmc/ultimate/ssbu-cpu-pilot/config.ini"
+        }
+      ],
+      "sources": {
+        "detector_log": "user/sdmc/ultimate/ssbu-desync-detector/events.log",
+        "tile_log": "user/sdmc/ultimate/ssbu-tile-cursor/events.log",
+        "deluxe_log": "user/sdmc/ultimate/ssbu_online_deluxe_rewrite/events.log",
+        "pilot_ini": "user/sdmc/ultimate/ssbu-cpu-pilot/config.ini",
+        "pilot_log": "user/sdmc/ultimate/ssbu-cpu-pilot/events.log"
+      },
+      "trace": {
+        "unmapped_access": "log",
+        "symbols": [],
+        "points": [
+          {
+            "target": "main+0x135fd60",
+            "mode": "counters"
+          }
+        ]
+      }
+    },
+    {
+      "key": "b",
+      "display": ":117",
+      "source": "/home/intpa/trainingrooms-eden-lead-astra4/profiles/y",
+      "app": {
+        "path": "/home/intpa/Applications/Eden-GIF/20261104-f916cf4b8c68-unmapped-stop-fefd2b5f0cfc/Eden.AppImage",
+        "sha256": "fefd2b5f0cfcc5ed5426e7b0ce1d91fe25060024c861b8ff1dfc7814462ca4fd"
+      },
+      "game": "/home/intpa/Games/Roms/Switch/Super Smash Bros. Ultimate [01006A800016E000]+[v13.0.3+ 9DLC][US](nsw2u.com).xci",
+      "plugins": [
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libarcropolis.nro",
+          "sha256": "92171b2f4dbd7afe9361a55922f01de7f46ffae09f05185c1cea4ab79dba9a1c"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libcss_preserve.nro",
+          "sha256": "82862d00139bfeaf67cc922c90b285fbe71378a78fedec7e6eeb6d4a7ef8d4f9"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libelite_rematch.nro",
+          "sha256": "4f13fd146a0b87a288df7a63823966a49d1f08afa6d69fd6a37dbe0bf62618db"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libelite_stages_counterpick.nro",
+          "sha256": "584a3699185e984324281f4d8518ea3a03830606a135889cea2daf6ba74f0db2"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libgsp_visualizer.nro",
+          "sha256": "879ef69bb186f07b1c7be0b93fb570a92b81522fcfd9b5ee301984c82b64d348"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libimgui_smash.nro",
+          "sha256": "d8e987fea04f70f680838a293f2f3834517490e608f8ecc60fbed55fbcc3d5b6"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libinstant_back.nro",
+          "sha256": "bdb0abb070089639d8f73b9c8a6b2bcc297883a8414fd5316a25d4bb064e5e14"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libmemory_guard.nro",
+          "sha256": "b2de129af559c303dfa40635b37cd40f160635385d4d8a73b6dda45172c0990d"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libnro_hook.nro",
+          "sha256": "ca7aec03aee49fea539dcb92569fea5bc5389f77377ba2a30e4d0b7ebd0255e6"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libparam_hook.nro",
+          "sha256": "3ed7a2945084176cbb7742d99878f1e8d3a0992feb0fef74be2cfbc68ac8fb88"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libsmash_gamepad_overlay.nro",
+          "sha256": "a7fba17917be6c69e7b20cbf79fe21f3a9897f59c673e4e61a067b818e8b2db6"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libsmash_replay_to_mp4.nro",
+          "sha256": "c3873f120e4c760df3bea051652daa20bd1d0cd3a9b319865f7e6ba507f429d0"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libssbu_cpu_pilot.nro",
+          "sha256": "ed8f308f695842a9e5f1728f829cfe8e325c0aa98dee79c875358ad435d7dfea"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libssbu_desync_detector.nro",
+          "sha256": "02488cdc8e0e4ab2a3da0cd83cc2b2e363ef00c6e714227599675b7da43e82ee"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libssbu_online_deluxe_rewrite.nro",
+          "sha256": "bc8a64283285b7627ec836e1ba5826de553447dfe3a84620464269644cd450df"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libssbu_quiet_elite_switch.nro",
+          "sha256": "c65d9cc26d4d31c96dfb9022eee11ea4986c2cd6905bd34ba04e25d33a0954fd"
+        },
+        {
+          "path": "/home/intpa/instant_back-card-20261105-v020/after/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libssbu_refresh_clock.nro",
+          "sha256": "1246f448fcd42092423ff9df51b7eaade806f95ec3da460ba51cf8f2576ff3c0"
+        },
+        {
+          "path": "/home/intpa/trainingrooms-eden-pkg6/nro/aid/libssbu_tile_cursor.nro",
+          "sha256": "b8313ca2e66a52f1bcfc4afc764df1b7cdc5aee7e194bdea671cea02746934bc"
+        }
+      ],
+      "files": [
+        {
+          "path": "/home/intpa/ssbu-cpu-pilot-work/switch/card-20261105-1538/ultimate/ssbu_online_deluxe_rewrite/config.ini",
+          "sha256": "985a091da90c7eb69981264e3445d41c19050610e2b394eb11c6bf06d8064a90",
+          "to": "user/sdmc/ultimate/ssbu_online_deluxe_rewrite/config.ini"
+        },
+        {
+          "path": "/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/taskb2/pilot-config.ini",
+          "sha256": "45605d90ffa4e3004763074e1ebbeffe906f04d8b796cbad932f1207eb4e766b",
+          "to": "user/sdmc/ultimate/ssbu-cpu-pilot/config.ini"
+        }
+      ],
+      "sources": {
+        "detector_log": "user/sdmc/ultimate/ssbu-desync-detector/events.log",
+        "tile_log": "user/sdmc/ultimate/ssbu-tile-cursor/events.log",
+        "deluxe_log": "user/sdmc/ultimate/ssbu_online_deluxe_rewrite/events.log",
+        "pilot_ini": "user/sdmc/ultimate/ssbu-cpu-pilot/config.ini",
+        "pilot_log": "user/sdmc/ultimate/ssbu-cpu-pilot/events.log"
+      },
+      "trace": {
+        "unmapped_access": "log",
+        "symbols": [],
+        "points": [
+          {
+            "target": "main+0x135fd60",
+            "mode": "counters"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -159,7 +159,8 @@ and the console itself. The next section answers the first.
 
 Evidence is in the popup-route work folder: `taskb2/` (scripts and logs) and
 `evidence/` (`dd-popup-pos1`, `dd-popup-pos2`, `dd-popup-ty1`,
-`dd-popup-pos5`, `taskb2/`; each with its sha256 in `evidence/manifest.json`).
+`dd-popup-pos5`, `dd-popup-bF1`, `dd-popup-pos6`, `dd-popup-bC1`, `taskb2/`;
+each with its sha256 in `evidence/manifest.json`).
 The diag switch is on branch `taskb/playback-continue` (`8def90b`).
 
 **What differed.** The game's replay check (`.135fc84`–`.135fd5c`) is the
@@ -248,6 +249,37 @@ Run `dd-popup-pos5` played both kept recordings in vanilla (diag `playback_conti
 - The TrainingRooms console's recording first fails at frame 536. b's fighter was KO'd at 533 and frozen at (168.0097, −154.5136). Vanilla moves it to (0, 170) at 595 (KO+62) and lowers it 166.586, 163.243, …. The recording has it at (0, 170) at 536 (KO+3) and then not on that descent (`taskb2/shift-test-ty1-tr.log`).
 
 That is the card's signature exactly, 59 frames early. The plugin set was only TrainingRooms and its two dependencies.
+
+**Live bisection with the card's configuration** (primary addendum,
+2026-11-06). Same-host LAN Quickplay pairs, Mr. Game & Watch (a, readies
+first, station 0) vs Fox (b, station 1), picked exactly with the tile cursor.
+Each console's own CPU pilot (the card's release `ed8f308f`, switched to
+`CPU (L9)` through Deluxe's overlay, Auto rematch on) plays its P1; the
+detector is on both. Quickplay picks the stage itself, and the profiles'
+Quickplay rules are 2:00 timed with items on.
+
+| Arm | Plugins on both consoles | Result |
+|---|---|---|
+| `dd-popup-ty1` | a: none; b: TrainingRooms + `nro_hook` + `param_hook` | desync at frame 837 after b's fighter died (runner input) |
+| `dd-popup-bF1` | the card's 18 plugins, Deluxe `config.ini`, TrainingRooms settings | desync at frame 1499 (0.42 match-minutes) |
+| `dd-popup-bC1` | the same without TrainingRooms | no desync: 5 matches of 7,521 frames each, all normal ends on both (`desync_seen=0`), 10.45 match-minutes; a station 0, b station 1 throughout |
+
+In `dd-popup-bF1` both consoles ran TrainingRooms:
+- a (station 0) logged `scene … melee=0x0e` and `[LobbyPractice] active=false` when the battle began.
+- b (station 1) logged nothing after its waiting-room `active=true`.
+
+`dd-popup-pos6` played both recordings in vanilla:
+- a's (station 0) recording plays to its end (frame 1544) with no mismatch.
+- b's recording first fails at 1482. b's Fox was KO'd at 1479 and frozen at (104.2534, −147.7383); the recording has him at (0, 170) at 1482, while vanilla moves him there at 1541. That is 59 frames early again (`taskb2/shift-test-bF1-tr.log`).
+
+TrainingRooms is necessary and sufficient:
+- **Necessary:** without it, the full set (Deluxe and the CPU pilot included) ran 10.45 match-minutes with no desync.
+- **Sufficient:** with only its own dependencies on one console, it desyncs at that console's first death.
+
+Limits:
+- Arm C's deaths were not logged one by one. Mid-match screenshots show heavy damage and a 0 % Fox 51 s in (`taskb2/bC1-peek`), and Arm C's normal ends keep no recording.
+- The pair stopped rematching after match 5. a's Eden front end had stopped answering its control socket (the game kept running), so the run was ended there.
+- Quickplay chose the stages, not Yoshi's Island (Melee).
 
 Not fixed here (the order was to find causes). The change belongs in
 TrainingRooms, another project. Its waiting-room flag must not outlive the

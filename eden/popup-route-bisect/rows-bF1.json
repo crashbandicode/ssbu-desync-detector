@@ -1,0 +1,584 @@
+{
+  "game_id": "01006A800016E000",
+  "start": "frontend-ready",
+  "about": "Task B plugin branch, live (primary addendum 2026-11-06): LAN Quickplay pair, CPU pilot on both sides, Mr. Game & Watch (a, station 0) vs Fox (b, station 1); arm F the card's full plugin set on both, arm C the same without TrainingRooms. Quickplay picks the stage; the ruleset is the profile's.",
+  "setup": [
+    {
+      "state": "Card plugin set, Deluxe config, pilot INI (level 9, auto rematch)",
+      "via": "fixture",
+      "ref": "template-config-surface-{F,C}.json"
+    },
+    {
+      "state": "P1 to CPU",
+      "via": "hook",
+      "ref": "steps.py:deluxe_to_view, pilot_p1_cpu"
+    },
+    {
+      "state": "Fighters",
+      "via": "hook",
+      "ref": "steps.py:pick_tile (tile cursor)"
+    }
+  ],
+  "segments": {
+    "to-online": {
+      "file": "segments/to-online.edenmacro.json",
+      "cap": 60,
+      "recipe": [
+        {
+          "buttons": "down",
+          "hold": 150,
+          "gap": 0.9
+        },
+        {
+          "buttons": "right",
+          "hold": 150,
+          "gap": 1.2
+        },
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 14
+        }
+      ],
+      "sha256": "d52590537267a9aa817e3d7e8969fde0d70e38ca93cf36a5ca616ba8d4678858",
+      "recorded": "2026-11-05T22:31:06Z"
+    },
+    "to-quickplay": {
+      "file": "segments/to-quickplay.edenmacro.json",
+      "cap": 40,
+      "recipe": [
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 7
+        },
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 6
+        }
+      ],
+      "sha256": "4db24aee967ca0721918af0291deb53cbefdc07ce4485cf8d423401a5bc63acc",
+      "recorded": "2026-11-05T22:31:55Z"
+    },
+    "to-css": {
+      "file": "segments/to-css.edenmacro.json",
+      "cap": 60,
+      "recipe": [
+        {
+          "buttons": "a",
+          "hold": 150,
+          "gap": 20
+        },
+        {
+          "buttons": "lstick,up",
+          "hold": 150,
+          "gap": 1.5
+        }
+      ],
+      "sha256": "df589d123449a453b70525e393591b2a95249bc8d55470402985236df774a4d5",
+      "recorded": "2026-11-05T22:32:44Z"
+    },
+    "ready": {
+      "file": "segments/ready.edenmacro.json",
+      "cap": 20,
+      "recipe": [
+        {
+          "buttons": "a",
+          "gap": 3,
+          "hold": 150
+        }
+      ],
+      "sha256": "a66184f087ac3841bbecd7198f2adbc20ffab73d18c1ba2a84edecc4027c7ede",
+      "recorded": "2026-11-05T22:39:09Z"
+    },
+    "attract-cancel": {
+      "file": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/library/segments/attract-cancel.edenmacro.json",
+      "sha256": "1b506dbfc689e79e8bfca69b74274ab674b91ac8359219a1a4c95faa81aae70f",
+      "cap": 30,
+      "start_gate": null,
+      "end_gate": "main",
+      "from_run": "p4r-shared",
+      "row": "nav00-attract-cancel",
+      "library": "attract-cancel"
+    }
+  },
+  "gates": {
+    "main": {
+      "kind": "image",
+      "reference": "/home/intpa/ssbu-mod-playbook/tools/eden-runner/library/refs/main.png",
+      "sha256": "902628cebd8620847be44e41a826046740f495ca0dfa7e78d8482c43c0da1bdc",
+      "roi": [
+        150,
+        265,
+        450,
+        335
+      ],
+      "tolerance": 8,
+      "cap": 30,
+      "reference_is_roi": true,
+      "from_run": "lr-03",
+      "library": "main",
+      "recover": "attract-cancel"
+    },
+    "online-menu": {
+      "kind": "image",
+      "reference": "refs/online-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 40,
+      "sha256": "2f4d98fd992d0bf622806cd7d3bd1442754940dd5d4296ce41dfee089bf3bcc9",
+      "acquired": "2026-11-05T22:31:12Z"
+    },
+    "quickplay-menu": {
+      "kind": "image",
+      "reference": "refs/quickplay-menu.png",
+      "roi": [
+        40,
+        5,
+        300,
+        45
+      ],
+      "acquire": true,
+      "cap": 40,
+      "sha256": "4bf9d8236d2630faa734950587817c432e478e0b2d2b6396f2de6b7015ff070f",
+      "acquired": "2026-11-05T22:31:56Z"
+    },
+    "css-tile": {
+      "kind": "log",
+      "source": "tile_log",
+      "pattern": "settled screen=css at=(\\d+) hovered=\\1\\b",
+      "cap": 40
+    },
+    "ready-banner": {
+      "kind": "image",
+      "reference": "refs/ready-banner.png",
+      "roi": [
+        200,
+        110,
+        600,
+        240
+      ],
+      "acquire": true,
+      "cap": 30,
+      "sha256": "a70e14b154caa901a65a3d2f0dcac1d852a9635372103097dd67791b256900be",
+      "acquired": "2026-11-05T22:39:06Z"
+    },
+    "matched": {
+      "kind": "log",
+      "source": "detector_log",
+      "pattern": "session slot=\\d+ kind=online",
+      "on_all": [
+        "a",
+        "b"
+      ],
+      "cap": 300
+    },
+    "loaded": {
+      "library": "loaded"
+    },
+    "installed-card": {
+      "kind": "log",
+      "source": "detector_log",
+      "whole_file": true,
+      "cap": 180,
+      "pattern": "plugin=ssbu-desync-detector/0\\.2\\.0 telemetry=1 hooks=lockstep,playback dialog=installed heap_allocations=0"
+    }
+  },
+  "rows": [
+    {
+      "id": "r00-load",
+      "start": "frontend-ready",
+      "end": "loaded",
+      "budget_min": 4,
+      "steps": [
+        {
+          "call": "game.load",
+          "on": "a",
+          "params": {
+            "path": "@game"
+          },
+          "job_cap": 180
+        },
+        {
+          "call": "game.load",
+          "on": "b",
+          "params": {
+            "path": "@game"
+          },
+          "job_cap": 180
+        },
+        {
+          "gate": "loaded",
+          "on": "a"
+        },
+        {
+          "gate": "loaded",
+          "on": "b"
+        },
+        {
+          "gate": "installed-card",
+          "on": "a"
+        },
+        {
+          "gate": "installed-card",
+          "on": "b"
+        },
+        {
+          "reason": "other plugins finish booting",
+          "wait_ms": 15000
+        },
+        {
+          "shot": "boot",
+          "on": "a"
+        },
+        {
+          "shot": "boot",
+          "on": "b"
+        }
+      ]
+    },
+    {
+      "id": "r01-main",
+      "start": "loaded",
+      "end": "main",
+      "budget_min": 4,
+      "steps": [
+        {
+          "gate": "loaded",
+          "on": "a"
+        },
+        {
+          "gate": "loaded",
+          "on": "b"
+        },
+        {
+          "run": "steps.py:to_main",
+          "on": "a",
+          "check": true,
+          "args": {
+            "tries": 8
+          }
+        },
+        {
+          "run": "steps.py:to_main",
+          "on": "b",
+          "check": true,
+          "args": {
+            "tries": 8
+          }
+        },
+        {
+          "gate": "main",
+          "on": "a"
+        },
+        {
+          "gate": "main",
+          "on": "b"
+        }
+      ]
+    },
+    {
+      "id": "r02-pilot",
+      "start": "main",
+      "end": "pilot-cpu",
+      "budget_min": 4,
+      "steps": [
+        {
+          "run": "steps.py:deluxe_to_view",
+          "on": "a",
+          "check": true,
+          "args": {
+            "want": 5
+          }
+        },
+        {
+          "run": "steps.py:pilot_p1_cpu",
+          "on": "a",
+          "check": true
+        },
+        {
+          "shot": "after-pilot",
+          "on": "a"
+        },
+        {
+          "run": "steps.py:deluxe_to_view",
+          "on": "b",
+          "check": true,
+          "args": {
+            "want": 5
+          }
+        },
+        {
+          "run": "steps.py:pilot_p1_cpu",
+          "on": "b",
+          "check": true
+        },
+        {
+          "shot": "after-pilot",
+          "on": "b"
+        }
+      ],
+      "note": "Deluxe overlay: L+R+Down to the first own page (the CPU Pilot page in the card's cycle), ZR+Right on P1 (Player -> CPU, the pilot writes p1=cpu), L+R+Down until hidden."
+    },
+    {
+      "id": "r03-online",
+      "start": "pilot-cpu",
+      "end": "online-menu",
+      "budget_min": 4,
+      "steps": [
+        {
+          "gate": "online-menu",
+          "on": "a"
+        },
+        {
+          "run": "steps.py:probe_input",
+          "on": "b",
+          "check": true,
+          "args": {
+            "buttons": [
+              "b"
+            ],
+            "hold_ms": 150,
+            "settle_s": 3.0
+          }
+        },
+        {
+          "run": "steps.py:to_main",
+          "on": "b",
+          "check": true,
+          "args": {
+            "tries": 6
+          }
+        },
+        {
+          "gate": "main",
+          "on": "b"
+        },
+        {
+          "play": "to-online",
+          "on": "b"
+        },
+        {
+          "gate": "online-menu",
+          "on": "b"
+        }
+      ],
+      "note": "bF1 in-boot retry: a reached the Online menu in the previous attempt (B twice -> title -> +); b had its side menu closed with focus on the side column: one more B (title), then +."
+    },
+    {
+      "id": "r04-quickplay",
+      "start": "online-menu",
+      "end": "quickplay-menu",
+      "budget_min": 4,
+      "steps": [
+        {
+          "gate": "online-menu",
+          "on": "a"
+        },
+        {
+          "play": "to-quickplay",
+          "on": "a"
+        },
+        {
+          "gate": "quickplay-menu",
+          "on": "a"
+        },
+        {
+          "gate": "online-menu",
+          "on": "b"
+        },
+        {
+          "play": "to-quickplay",
+          "on": "b"
+        },
+        {
+          "gate": "quickplay-menu",
+          "on": "b"
+        }
+      ]
+    },
+    {
+      "id": "r05-match",
+      "start": "quickplay-menu",
+      "end": "matched",
+      "budget_min": 8,
+      "steps": [
+        {
+          "run": "steps.py:pick_tile",
+          "on": "a",
+          "check": true,
+          "args": {
+            "target": 29
+          }
+        },
+        {
+          "gate": "ready-banner",
+          "on": "a"
+        },
+        {
+          "play": "ready",
+          "on": "a"
+        },
+        {
+          "reason": "a waits alone in the waiting room first (the host)",
+          "wait_ms": 8000
+        },
+        {
+          "gate": "quickplay-menu",
+          "on": "b"
+        },
+        {
+          "play": "to-css",
+          "on": "b"
+        },
+        {
+          "gate": "css-tile",
+          "on": "b"
+        },
+        {
+          "run": "steps.py:pick_tile",
+          "on": "b",
+          "check": true,
+          "args": {
+            "target": 7
+          }
+        },
+        {
+          "gate": "ready-banner",
+          "on": "b"
+        },
+        {
+          "play": "ready",
+          "on": "b"
+        },
+        {
+          "shot": "match",
+          "on": "b"
+        },
+        {
+          "gate": "matched",
+          "on": "a"
+        },
+        {
+          "reason": "the battle has started on both",
+          "wait_ms": 8000
+        },
+        {
+          "shot": "match",
+          "on": "a"
+        },
+        {
+          "shot": "match",
+          "on": "b"
+        }
+      ],
+      "note": "a = Mr. Game & Watch (tile 29), readies first (host, station 0); b = Fox (tile 7), second (station 1). bF1 retry: a was on the character select with its hand on tile 78 (the first pick_tile walked the bottom row); pick_tile is now row-aware."
+    },
+    {
+      "id": "r06-watch",
+      "start": "matched",
+      "end": "watched",
+      "budget_min": 30,
+      "steps": [
+        {
+          "run": "steps.py:watch_matches",
+          "on": "a",
+          "check": true,
+          "args": {
+            "peer": "b",
+            "cap_s": 1500,
+            "idle_s": 150,
+            "stop_on_desync": true
+          }
+        },
+        {
+          "shot": "watched",
+          "on": "a"
+        },
+        {
+          "shot": "watched",
+          "on": "b"
+        },
+        {
+          "reason": "the frames file is written through when the session closes",
+          "wait_ms": 9000
+        },
+        {
+          "run": "steps.py:copy_detector_folder",
+          "on": "a",
+          "args": {
+            "name": "after-watch"
+          }
+        },
+        {
+          "run": "steps.py:copy_profile_dir",
+          "on": "a",
+          "args": {
+            "name": "pilot",
+            "rel": "user/sdmc/ultimate/ssbu-cpu-pilot",
+            "limit": 4194304
+          }
+        },
+        {
+          "run": "steps.py:copy_profile_dir",
+          "on": "a",
+          "args": {
+            "name": "deluxe",
+            "rel": "user/sdmc/ultimate/ssbu_online_deluxe_rewrite",
+            "limit": 8388608
+          }
+        },
+        {
+          "run": "steps.py:copy_profile_dir",
+          "on": "a",
+          "args": {
+            "name": "trainingrooms",
+            "rel": "user/sdmc/ultimate/TrainingRooms",
+            "limit": 8388608
+          }
+        },
+        {
+          "run": "steps.py:copy_detector_folder",
+          "on": "b",
+          "args": {
+            "name": "after-watch"
+          }
+        },
+        {
+          "run": "steps.py:copy_profile_dir",
+          "on": "b",
+          "args": {
+            "name": "pilot",
+            "rel": "user/sdmc/ultimate/ssbu-cpu-pilot",
+            "limit": 4194304
+          }
+        },
+        {
+          "run": "steps.py:copy_profile_dir",
+          "on": "b",
+          "args": {
+            "name": "deluxe",
+            "rel": "user/sdmc/ultimate/ssbu_online_deluxe_rewrite",
+            "limit": 8388608
+          }
+        },
+        {
+          "run": "steps.py:copy_profile_dir",
+          "on": "b",
+          "args": {
+            "name": "trainingrooms",
+            "rel": "user/sdmc/ultimate/TrainingRooms",
+            "limit": 8388608
+          }
+        }
+      ],
+      "note": "No runner input: each console's CPU pilot plays its P1; auto rematch chains matches."
+    }
+  ]
+}

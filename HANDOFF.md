@@ -1,4 +1,26 @@
-# Popup-route worker — 2026-11-06 ~04:00Z Task B cause FOUND (operator order ~02:25Z; current)
+# Popup-route worker — 2026-11-06 ~05:00Z addendum detector-stage-pilot-1 DONE (current)
+
+Result: TrainingRooms 0.2.0-rc.2 is necessary and sufficient. F (card set on both, pilots both) desync at
+frame 1499, early rebirth of the station-1 fighter (pos6: 1482 vs 1541); C (same minus TrainingRooms) 5
+matches, 10.45 match-minutes, 0 desyncs (r07 stopped by STOP after the pair stopped rematching: a's Eden
+control socket silent since 04:32Z, game still running); ty1 (TR + deps on station 1 only) desync at 837.
+Evidence: evidence/dd-popup-{bF1,pos6,bC1} (+tgz), taskb2/{bF1-check,bC1-check,shift-test-bF1-tr}.log,
+manifest.json 2211 entries. No claim/Eden/job running; run copies removed with manifests.
+
+# Popup-route worker — 2026-11-06 ~04:45Z addendum live bisection (history)
+
+Pairs: G&W (a, readies first, station 0) vs Fox (b, station 1), tile-cursor picks, each console's card
+release pilot (ed8f308f) set to CPU (L9) via Deluxe overlay (L+R+Down to its page, ZR+Right; ZR also opens
+the game's side menu: B, B, + recovers), auto rematch; 2:00 timed Quickplay rules with items (profile's).
+- F dd-popup-bF1 (Yoga, 04:05-04:18Z): card 18 plugins + Deluxe config + TR settings on both: desync frame
+  1499; a (st0) TR logged active=false at battle start, b (st1) did not. pos6 (Yoga): b's recording KO at
+  1479, (0,170) at 1482 vs vanilla 1541 (+59 again); a's recording clean to 1544.
+- C dd-popup-bC1 (Surface, from 04:20Z): same minus libtraining_rooms.nro on both. r06 watch stopped early
+  (session-count bug, fixed in steps.py); r07-rewatch in the same boot up to 1500 s. 3 matches x 7521
+  frames normal so far, 0 desyncs (live; finish: count sync_end frames in both detector logs).
+- Then: Down bC1, pack evidence, delete copies, fill BC1-RESULT/BC1-MINUTES in docs, commit, compliance.
+
+# Popup-route worker — 2026-11-06 ~04:00Z Task B cause FOUND (operator order ~02:25Z; history)
 
 Cause of the 15:32:57 desync: TrainingRooms 0.2.0-rc.2 (plugin, not a mod; not fixed, by order). Proven
 in Eden: dd-popup-ty1 (Yoga pair, a vanilla station 0, b TrainingRooms rc.2 + nro_hook + param_hook + the
