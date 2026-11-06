@@ -1,4 +1,28 @@
-# Popup-route worker — 2026-11-06 close-out (current; everything below is history)
+# Popup-route worker — 2026-11-06 mods A/B, operation detector-mods-ab-1 (current; below is history)
+
+Order: replay card match-0.bin with the card's ARCropolis (92171b2f) and the card's 7 mods (primary's
+read-only copy switch/card-20261105-mods, 586 files, sha256-checked), alone and with all 18 card plugins.
+Run dd-popup-mods1, Surface, Eden fefd2b5f, profile g, 01:54-02:18Z; Down released, cleanup_failures=[],
+both forced stops (signal 9, not crashes); consoles unmapped 0, no guest fault (b: 3 Eden <Critical>
+asserts, renderer/buffer queue). Rows as run: eden/popup-route-mods/rows-mods1.json (r02 and r04 rewritten
+in the boot); clean re-run rows: rows.json (dry-run READY). Evidence: work folder evidence/dd-popup-mods1
+(+ .tgz f04fb812), taskb-logs/, manifest.json (389 entries); run copies removed on the Surface
+(dd-popup-mods1-deletion.json, 9,694 files).
+Results: mods loaded on both (game's own Training SSS: FD tile = Cosmic Destination tile, MAD 21 vs 73
+stock; ARCropolis discovery.cache names all 7). a (detector + ARCropolis + mods) and b (18 plugins +
+Deluxe config + mods): playback_mismatch frame=4151 computed=0xa417d4d4 recorded=0x613d0d23, the same as
+y01/ab1; referee and stream reconstruction identical (4348: two sound draws here, +1 sound there). Playback
+frames file byte-identical in y01, ab1, mods1 a and b (33c2ab12...). No bisect: nothing changed the result.
+Stage (replay details): Yoshi's Island (Melee), Battlefield form; Quickplay (Elite), Fox vs Mr. Game &
+Watch, 3 stock 7:00, 1:28. Correction made in docs: ab1 carried 3 of the 7 mods (byte-identical) with
+ARCropolis loaded, not "no mods". Still open: online-only plugin behaviour, the console, the other console.
+Rows lessons: stock Training stage select ignores a B tap (the card's instant_back makes taps work; hold
+B 2 s without it); X then B on a replay leaves focus on Details; idle main menu falls into the attract
+movie (steps.py:to_vault handles movie/title/Smash/Games & More).
+Surface leftovers: /home/intpa/popup-route-work (scripts, card/ copy of plugins+mods 96.6 MB, inputs/,
+evidence tgz), /home/intpa/eden-runs/dd-popup-mods1 (logs/out only). No Eden/claim/job running.
+
+# Popup-route worker — 2026-11-06 close-out (history)
 
 Coordinator check ~23:45Z accepted dd-popup-y03 r05 (cite a-233408Z-613373-popup.png; a's later
 popup-settled shot is black). Close-out: no further boots; compliance report
@@ -25,8 +49,8 @@ Eden, Yoga only, all released clean, consoles 0 panic/abort/crash/Unmapped:
 - y03 23:30-23:38Z and y05 23:52-00:10Z: forced desync -> pop-up "A connection error has occurred." +
   "Reason: Desync detected. ..." on both, communication_text route=plain; y05 then an unforced match
   ended normally on both at frame 7521, desync_seen=0.
-- ab1 23:43-23:48Z (one instance, card's 18 plugins + Deluxe config): replay stops at 4151 exactly as
-  with the detector alone.
+- ab1 23:43-23:48Z (one instance, card's 18 plugins + Deluxe config; profile y also carried 3 of the
+  card's mods, loaded by ARCropolis): replay stops at 4151 exactly as with the detector alone.
 Task B: vanilla = this console 0-4151; positions not reproduced at 4151 (this console left vanilla);
 first checked difference one extra `sound` draw on the other console at 4348. Card plugins in playback
 don't reproduce it; open: card mods (ultimate/mods not captured), online-only plugin behaviour, console.

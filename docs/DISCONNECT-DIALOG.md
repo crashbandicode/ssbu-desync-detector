@@ -70,17 +70,20 @@ so it did not run in Eden.
 
 ## 2026-11-05: the 15:32:57 desync, replayed
 
-The card's `match-0.bin` (Quickplay (Elite), Mr. Game & Watch and Fox, a
-stage with hazards on) was played from the Vault in Eden (run `dd-popup-y01`, Eden
+The card's `match-0.bin` (Quickplay (Elite), Mr. Game & Watch and Fox on
+Yoshi's Island (Melee) in its Battlefield form, 3 stock 7:00, 1:28; read off
+the replay's own details screen, `a-021029Z-141864-replay-details.png` of run
+`dd-popup-mods1`) was played from the Vault in Eden (run `dd-popup-y01`, Eden
 `fefd2b5f`, Yoga) with only this detector (`680bc561`) and the tile cursor:
-no other plugin, no ARCropolis, no mods. A trace point on the playback
+no other plugin and no ARCropolis, so no mod could load. A trace point on the playback
 check recorded the nine RNG streams every frame. Evidence: rows
 `r15-vault` to `r18-playback` and `r19-recopy` (the playback's detector
 folder copied after its frames file closed) of that run; the outputs below
 are `taskb-referee-closed.log`, `taskb-stream-attribution.log`,
-`taskb-referee-cardset.log` and `taskb-stream-attribution-cardset.log` in
-the popup-route work folder, whose `evidence/` has every file with its
-sha256.
+`taskb-referee-cardset.log`, `taskb-stream-attribution-cardset.log` and,
+for the mods run (playback slot 2), `taskb-referee-mods-{a,b}.log` and
+`taskb-stream-attribution-mods-{a,b}.log` in the popup-route work folder,
+whose `evidence/` has every file with its sha256.
 
 ```text
 cargo run --example referee -- <card detector folder> 0 <playback detector folder> 1
@@ -101,11 +104,35 @@ python3 -I -B tools/stream_attribution.py <trace.jsonl> --frame 4348 --ours 0x77
   consoles is one extra `sound` draw on the other console at frame 4348.
 
 - With the card's own plugin set instead (run `dd-popup-ab1`: the 18 NROs
-  of the 2026-11-05 06:45 copy, the card's detector `02488cdc` among them,
-  and the card's Deluxe `config.ini`; no mods), the playback stopped at the
-  same frame with the same values (`playback_mismatch frame=4151
-  computed=0xa417d4d4 recorded=0x613d0d23`), the referee gave the same
-  verdict, and the stream reconstruction gave the same result.
+  of the 2026-11-05 06:45 copy, the card's detector `02488cdc` and its
+  ARCropolis among them, and the card's Deluxe `config.ini`), the playback
+  stopped at the same frame with the same values (`playback_mismatch
+  frame=4151 computed=0xa417d4d4 recorded=0x613d0d23`), the referee gave the
+  same verdict, and the stream reconstruction gave the same result.
+  Correction: that profile was not mod-free. The Yoga's base profile already
+  carried three of the card's seven mods, byte-identical to the card's files
+  (Cosmic Destination, Less Distracting Northern Cave, Less Distracting Umbra
+  Clock Tower), and ARCropolis was loaded.
+- With the card's ARCropolis (`92171b2f`) and all seven of the card's mods
+  (run `dd-popup-mods1`, Surface, 2026-11-06; the 586 files of the primary's
+  read-only copy, checked against its sha256 manifest, in `ultimate/mods`):
+  instance a with only the card's detector `02488cdc` and ARCropolis,
+  instance b with all 18 card NROs and the card's Deluxe `config.ini`. The
+  mods loaded in both: on the game's own Training stage select, the Final
+  Destination tile is the Cosmic Destination tile (mean absolute difference
+  21 to the mod's `stage_1_end.bntx`, 73 to stock;
+  `a-015556Z-738281-sss-mod-proof.png`, `b-015618Z-795013-sss-mod-proof.png`),
+  and ARCropolis's `discovery.cache` names all seven mods on both. Both
+  playbacks stopped at frame 4151 with the same values (`playback_mismatch
+  frame=4151 computed=0xa417d4d4 recorded=0x613d0d23`). The referee gave the
+  same verdict and the stream reconstruction the same result (two `sound`
+  draws at 4311 and 4314 give `0x7774d5d0` at 4348; the other console's value
+  is one more `sound` draw). The playback frames file is byte-identical in
+  `dd-popup-y01`, `dd-popup-ab1` and both instances here (sha256 `33c2ab12…`,
+  4,152 frames). No mod touches this match's stage, Fox or Mr. Game & Watch:
+  Final Destination, Hollow Bastion, Northern Cave and Umbra Clock Tower
+  stages, a Kirby model, the GAME SET narration and info layouts. There
+  was nothing to bisect because no plugin or mod changed the result.
 
 Established: the operator's Switch ("this console", station 0 in its log)
 left vanilla. With the same inputs, its simulated positions first differed
@@ -117,14 +144,15 @@ at frame 4348 (`0x7774d5d0` here, `0x9985577d` on the other console), one
 extra `sound` draw on the other console (the stream behind launch voices
 and `PLAY_SEQUENCE` variants, [WHAT-IS-CHECKED](WHAT-IS-CHECKED.md)). The
 card's 18 plugins, as they run during a replay playback with the card's
-Deluxe settings, do not reproduce this console's positions either.
+Deluxe settings, do not reproduce this console's positions either. Neither do
+the card's seven mods loaded by the card's ARCropolis, alone or with the 18
+plugins: those playbacks are frame-for-frame identical to the unmodded one.
+The match was on Yoshi's Island (Melee), Battlefield form.
 
 Not established: what changed this console's positions, and whether the
-other console was vanilla (only this console's recording exists). Left open are
-ARCropolis mods in `ultimate/mods` (not in the capture), plugin behaviour
-that runs only online (a playback cannot show it), and the console itself.
-The next evidence is a listing and copy of the card's `ultimate/mods`,
-then the same replay with them.
+other console was vanilla (only this console's recording exists). Still
+open: plugin behaviour that runs only online (a playback cannot show it)
+and the console itself.
 
 ## 2026-11-03
 
