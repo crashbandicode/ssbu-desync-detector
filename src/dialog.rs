@@ -1,4 +1,4 @@
-//! Append evidence to the game's formatted communication-error text.
+//! Append evidence to the game's disconnect text.
 //!
 //! The game sets a label's text in two ways. With arguments, `.37a2660`
 //! formats into a zeroed 0x1000-byte UTF-16 stack buffer through `.37ab750`;
@@ -228,8 +228,11 @@ impl Route {
 }
 
 /// The hook of every route, minus register access: checks the frame and the
-/// caller, then appends `reason()` to a communication-error text. `reason`
-/// runs only for such a text. Returns the reason and the new count.
+/// caller, then appends `reason(notice)` to a disconnect text. `notice` is
+/// true for the Canceled notice and the reconnect warning, false for a
+/// communication-error sentence. `reason` runs only for such a text and
+/// returns nothing when a notice has no verdict. Returns the reason and the
+/// new count.
 ///
 /// # Safety
 /// `sp`/`fp` are the native SP and FP at `route.hook` with the guards of
@@ -240,7 +243,7 @@ pub unsafe fn append_in_frame(
     sp: u64,
     fp: u64,
     len: usize,
-    reason: impl FnOnce() -> Reason,
+    reason: impl FnOnce(bool) -> Option<Reason>,
 ) -> Option<(Reason, usize)> {
     if len >= CAPACITY {
         return None;
@@ -254,10 +257,11 @@ pub unsafe fn append_in_frame(
     // The guards fix this caller's zeroed 0x1000-byte buffer at this frame
     // offset; it belongs to this call and is not kept.
     let buffer = core::slice::from_raw_parts_mut(frame.buffer as *mut u16, CAPACITY);
-    if !is_communication_error(&buffer[..len]) {
+    let notice = is_disconnect_notice(&buffer[..len]);
+    if !notice && !is_communication_error(&buffer[..len]) {
         return None;
     }
-    let reason = reason();
+    let reason = reason(notice)?;
     append_reason(buffer, len, reason).map(|len| (reason, len))
 }
 
@@ -341,6 +345,85 @@ pub fn is_communication_error(text: &[u16]) -> bool {
     false
 }
 
+fn visible_is(text: &[u16], expected: &[u8]) -> bool {
+    let mut visible = Visible {
+        text,
+        at: 0,
+        space: false,
+    };
+    expected
+        .iter()
+        .all(|&byte| visible.next() == Some(u16::from(byte)))
+        && visible.next().is_none()
+}
+
+fn contains_phrase(text: &[u16], phrase: &[u8]) -> bool {
+    let mut visible = Visible {
+        text,
+        at: 0,
+        space: false,
+    };
+    while let Some(unit) = visible.next() {
+        if unit != u16::from(phrase[0]) {
+            continue;
+        }
+        let mut rest = visible.clone();
+        if phrase[1..]
+            .iter()
+            .all(|&byte| rest.next() == Some(u16::from(byte)))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Whole label `Canceled`.
+pub const NOTICE_CANCELED: u8 = 0;
+/// Whole label `Canceled.`
+pub const NOTICE_CANCELED_PERIOD: u8 = 1;
+/// The reconnect warning's fixed sentence.
+pub const NOTICE_RECONNECT: u8 = 2;
+/// `.377a120` stores its caller's return address at FP+8.
+pub const PLAIN_CALLER_LR: u64 = 8;
+
+/// Which disconnect notice this text is, if it is one. A cancel button,
+/// "Change canceled.", and an expedition cancel are different texts.
+pub fn notice_kind(text: &[u16]) -> Option<u8> {
+    if visible_is(text, b"canceled") {
+        Some(NOTICE_CANCELED)
+    } else if visible_is(text, b"canceled.") {
+        Some(NOTICE_CANCELED_PERIOD)
+    } else if contains_phrase(
+        text,
+        b"you disconnected in the middle of your last online battle",
+    ) {
+        Some(NOTICE_RECONNECT)
+    } else {
+        None
+    }
+}
+
+/// The orange matching notice is the whole label `Canceled` or `Canceled.`
+/// The warning after reconnect contains one fixed sentence.
+pub fn is_disconnect_notice(text: &[u16]) -> bool {
+    notice_kind(text).is_some()
+}
+
+/// The notice kind in a guarded frame, before any caller address is read.
+///
+/// # Safety
+/// `sp`/`fp` are the native SP and FP at `route.hook` with `route`'s guards
+/// matched, so the buffer is the caller's.
+pub unsafe fn notice_kind_in_frame(route: &Route, sp: u64, fp: u64, len: usize) -> Option<u8> {
+    if len >= CAPACITY {
+        return None;
+    }
+    let frame = route.frame(sp, fp)?;
+    let buffer = core::slice::from_raw_parts(frame.buffer as *const u16, len);
+    notice_kind(buffer)
+}
+
 fn ends_with_ascii(text: &[u16], suffix: &str) -> bool {
     text.len() >= suffix.len()
         && text[text.len() - suffix.len()..]
@@ -352,7 +435,10 @@ fn ends_with_ascii(text: &[u16], suffix: &str) -> bool {
 /// Returns the new native UTF-16 count. No partial write on insufficient
 /// room, invalid count/terminator, unrelated text or an existing suffix.
 pub fn append_reason(buffer: &mut [u16], len: usize, reason: Reason) -> Option<usize> {
-    if len >= buffer.len() || buffer[len] != 0 || !is_communication_error(&buffer[..len]) {
+    if len >= buffer.len()
+        || buffer[len] != 0
+        || !(is_communication_error(&buffer[..len]) || is_disconnect_notice(&buffer[..len]))
+    {
         return None;
     }
     for previous in Reason::ALL {

@@ -11,12 +11,15 @@ use crate::dialog;
 use crate::disconnect::Reason;
 use crate::evidence::Evidence;
 use crate::model::{
-    self, describe, minimal_outer, pack_desync, pack_recording, pack_sync_end, recorder, xor_words,
-    EndState, FrameRecord, Line, RawEvent, Site, Telemetry, CFMK_BYTES, CFMK_PAYLOAD_LEN,
-    CFMK_RECORDS, DESYNC, EV_DESYNC, EV_LINK, EV_PEER_ABORT, EV_PLAYBACK_MISMATCH, EV_RECORDING,
-    EV_SESSION, EV_SYNC_END, FRAME_CHECK, KIND_ONLINE, KIND_PLAYBACK, OUTER_BYTES, PEER_ABORT,
-    PLAYBACK_CHECK, RECORDING_NORMAL_END, RECORD_BYTES, REPLAY_FRAME_INDEX, REPLAY_PLAYER,
-    RNG_CHECK_WORD, RNG_MANAGER, RNG_STATE_STRIDE, SYNC_END, TAG_CFMK, TAG_FRAM,
+    self, describe, describe_fault, fault_code_is_logged, minimal_outer, pack_desync, pack_fault,
+    pack_recording, pack_sync_end, recorder, unpack_fault, xor_words, EndState, FaultView,
+    FrameRecord, Line, RawEvent, Site, Telemetry, CFMK_BYTES, CFMK_PAYLOAD_LEN, CFMK_RECORDS,
+    DESYNC, EV_DESYNC, EV_FAULT, EV_LINK, EV_PEER_ABORT, EV_PLAYBACK_MISMATCH, EV_RECORDING,
+    EV_SESSION, EV_SYNC_END, FAULT_ARM, FAULT_CALL_OFFSET, FAULT_CALL_WORD, FAULT_CODE_AT,
+    FAULT_OBJECT, FAULT_SESSION_OFFSET, FAULT_SESSION_WORD, FAULT_STORE_OFFSET, FAULT_STORE_WORD,
+    FAULT_WORD_AT, FAULT_WORD_COUNT, FRAME_CHECK, KIND_ONLINE, KIND_PLAYBACK, OUTER_BYTES,
+    PEER_ABORT, PLAYBACK_CHECK, RECORDING_NORMAL_END, RECORD_BYTES, REPLAY_FRAME_INDEX,
+    REPLAY_PLAYER, RNG_CHECK_WORD, RNG_MANAGER, RNG_STATE_STRIDE, SYNC_END, TAG_CFMK, TAG_FRAM,
 };
 use core::cell::UnsafeCell;
 use core::fmt::Write as _;
@@ -42,6 +45,11 @@ const COMMIT_WAIT_TICKS: u64 = 60 * TICKS_PER_SECOND;
 const WRITER_STACK: usize = 32 * 1024;
 const EVENTS_LOG_LIMIT: i64 = 1 << 20;
 const TELEMETRY_INTERVAL_TICKS: u64 = 5 * TICKS_PER_SECOND;
+/// The frame hook on the same pass runs well inside this. After it, the
+/// writer logs the fault with no frame rather than attaching a later one.
+const FAULT_FRESH_TICKS: u64 = TICKS_PER_SECOND / 20;
+const FAULT_STALE_TICKS: u64 = TICKS_PER_SECOND / 10;
+const FAULT_LOG_RING: usize = 4;
 const OPEN_READ: i32 = 1;
 const OPEN_WRITE_APPEND: i32 = 2 | 4;
 
@@ -104,6 +112,27 @@ static TEXT_BASE: AtomicU64 = AtomicU64::new(0);
 static DISCONNECT_EVIDENCE: Evidence = Evidence::new();
 static BOOT_TICK: AtomicU64 = AtomicU64::new(0);
 static TELEMETRY_REQUEST: AtomicBool = AtomicBool::new(false);
+/// Staged by the arming hook and taken by the frame hook on the same pass.
+static FAULT_CODE: AtomicU32 = AtomicU32::new(0);
+static FAULT_TICK: AtomicU64 = AtomicU64::new(0);
+static FAULT_MASK: AtomicU32 = AtomicU32::new(0);
+static FAULT_MASK_OK: AtomicU32 = AtomicU32::new(0);
+static FAULT_WORDS_OK: AtomicU32 = AtomicU32::new(0);
+static FAULT_WORDS: [AtomicU32; FAULT_WORD_COUNT] = [const { AtomicU32::new(0) }; FAULT_WORD_COUNT];
+static FAULT_LOG_HEAD: AtomicU64 = AtomicU64::new(0);
+
+struct FaultLogSlot {
+    seq: AtomicU64,
+    words_ok: AtomicU32,
+    words: [AtomicU32; FAULT_WORD_COUNT],
+}
+static FAULT_LOG: [FaultLogSlot; FAULT_LOG_RING] = [const {
+    FaultLogSlot {
+        seq: AtomicU64::new(0),
+        words_ok: AtomicU32::new(0),
+        words: [const { AtomicU32::new(0) }; FAULT_WORD_COUNT],
+    }
+}; FAULT_LOG_RING];
 
 /// The writer thread's object and stack, static so no heap is involved.
 #[repr(C, align(4096))]
@@ -161,10 +190,17 @@ fn publish_event(event: &RawEvent) {
     slot.seq.store(index + 1, Ordering::Release);
 }
 
-fn disconnect_reason(now: u64) -> Reason {
-    // The operator wants every actual communication-error message covered,
-    // including errors outside a match. Unusable session evidence says Unknown.
-    DISCONNECT_EVIDENCE.reason(now).unwrap_or(Reason::Unknown)
+fn disconnect_reason(now: u64, notice: bool) -> Option<Reason> {
+    // A communication-error sentence is itself the disconnect, so missing
+    // evidence still says Unknown. The Canceled notice and the reconnect
+    // warning share words with ordinary cancels, so they stay as the game
+    // wrote them unless this session has a verdict.
+    let precise = DISCONNECT_EVIDENCE.reason(now);
+    if notice {
+        precise
+    } else {
+        Some(precise.unwrap_or(Reason::Unknown))
+    }
 }
 
 /// The body of every text hook: `route` says where the count and the buffer
@@ -174,14 +210,36 @@ unsafe fn communication_text(route: &dialog::Route, ctx: &mut InlineCtx) {
     // SAFETY: installation matched every guard of `route`, which fixes the
     // frame layout, the buffer size and zeroing, and the instructions around
     // the hook. The buffer belongs to this call.
-    let appended = dialog::append_in_frame(
-        route,
-        TEXT_BASE.load(Ordering::Relaxed),
-        ctx.sp.x(),
-        ctx.registers[29].x(),
-        ctx.registers[route.count].w() as usize,
-        || disconnect_reason(now),
-    );
+    let sp = ctx.sp.x();
+    let fp = ctx.registers[29].x();
+    let len = ctx.registers[route.count].w() as usize;
+    let text_base = TEXT_BASE.load(Ordering::Relaxed);
+    // The plain function's caller is who asked for this label. Read it only
+    // after the frame check inside `notice_kind_in_frame` has accepted FP.
+    let kind = dialog::notice_kind_in_frame(route, sp, fp, len);
+    let appended = dialog::append_in_frame(route, text_base, sp, fp, len, |notice| {
+        disconnect_reason(now, notice)
+    });
+    if let Some(kind) = kind {
+        let caller = if route.caller.is_none() {
+            let saved = fp.checked_add(dialog::PLAIN_CALLER_LR).unwrap_or(0) as *const u64;
+            let lr = saved.read_unaligned();
+            lr.checked_sub(text_base)
+                .filter(|offset| *offset < 0x1000_0000)
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        let verdict = appended
+            .map(|(reason, _)| u64::from(reason.code()))
+            .unwrap_or(model::NOTICE_VERDICT_WITHHELD);
+        publish_event(&RawEvent {
+            tick: now,
+            code: model::EV_NOTICE_TEXT,
+            a: u64::from(kind) | route.code << 8 | verdict << 16 | (len as u64) << 32,
+            b: caller,
+        });
+    }
     if let Some((reason, new_len)) = appended {
         // The relocated MOV hands this count on (args: the formatter's return
         // value, whose epilogue then restores the caller's x20; plain: the
@@ -317,6 +375,7 @@ unsafe fn desync_detector_frame_check(ctx: &mut InlineCtx) {
         }
     }
     DISCONNECT_EVIDENCE.frame(tick(), KIND_ONLINE, ctx.registers[19].x(), frame);
+    attach_fault_frame(frame);
     push_frame(FrameRecord {
         frame,
         rng: ctx.registers[11].w(),
@@ -324,6 +383,123 @@ unsafe fn desync_detector_frame_check(ctx: &mut InlineCtx) {
         recorded: 0,
         flags: KIND_ONLINE | ctx.registers[8].w().trailing_zeros().min(0xff) << 8,
     });
+}
+
+/// The countdown-arming stores. Runs once, when `.16acd30` has just returned
+/// nonzero. Reads that stored byte and the ten words; writes nothing.
+#[skyline::hook(offset = model::FAULT_ARM_OFFSET, inline)]
+unsafe fn desync_detector_fault_arm(ctx: &InlineCtx) {
+    let session = ctx.registers[19].x();
+    if session < 0x10000 {
+        return;
+    }
+    let code = read_u8(session + FAULT_CODE_AT as u64);
+    if !fault_code_is_logged(code) {
+        return;
+    }
+    let (mask, words) = read_fault_table();
+    stage_fault(code, mask, words);
+}
+
+fn stage_fault(code: u8, mask: Option<u16>, words: Option<[u32; FAULT_WORD_COUNT]>) {
+    if let Some(words) = words {
+        for (cell, word) in FAULT_WORDS.iter().zip(words) {
+            cell.store(word, Ordering::Relaxed);
+        }
+        FAULT_WORDS_OK.store(1, Ordering::Relaxed);
+    } else {
+        FAULT_WORDS_OK.store(0, Ordering::Relaxed);
+    }
+    match mask {
+        Some(mask) => {
+            FAULT_MASK.store(u32::from(mask), Ordering::Relaxed);
+            FAULT_MASK_OK.store(1, Ordering::Relaxed);
+        }
+        None => FAULT_MASK_OK.store(0, Ordering::Relaxed),
+    }
+    FAULT_TICK.store(tick(), Ordering::Relaxed);
+    FAULT_CODE.store(u32::from(code), Ordering::Release);
+}
+
+fn claim_fault(now: u64, fresh: bool) -> Option<FaultView> {
+    if FAULT_CODE.load(Ordering::Relaxed) == 0 {
+        return None;
+    }
+    let age = now.saturating_sub(FAULT_TICK.load(Ordering::Relaxed));
+    let take = if fresh {
+        age <= FAULT_FRESH_TICKS
+    } else {
+        age > FAULT_STALE_TICKS
+    };
+    if !take {
+        return None;
+    }
+    let code = FAULT_CODE.swap(0, Ordering::AcqRel);
+    if !fault_code_is_logged(code as u8) {
+        return None;
+    }
+    let words = (FAULT_WORDS_OK.load(Ordering::Relaxed) == 1).then(|| {
+        let mut words = [0; FAULT_WORD_COUNT];
+        for (word, cell) in words.iter_mut().zip(FAULT_WORDS.iter()) {
+            *word = cell.load(Ordering::Relaxed);
+        }
+        words
+    });
+    let mask = (FAULT_MASK_OK.load(Ordering::Relaxed) == 1)
+        .then(|| FAULT_MASK.load(Ordering::Relaxed) as u16);
+    Some(FaultView {
+        code: code as u8,
+        frame: None,
+        mask,
+        words,
+    })
+}
+
+fn publish_fault(mut view: FaultView, frame: Option<u32>) {
+    view.frame = frame;
+    let seq = FAULT_LOG_HEAD.fetch_add(1, Ordering::AcqRel) + 1;
+    let slot = &FAULT_LOG[((seq - 1) % FAULT_LOG_RING as u64) as usize];
+    if let Some(words) = view.words {
+        for (cell, word) in slot.words.iter().zip(words) {
+            cell.store(word, Ordering::Relaxed);
+        }
+        slot.words_ok.store(1, Ordering::Relaxed);
+    } else {
+        slot.words_ok.store(0, Ordering::Relaxed);
+    }
+    slot.seq.store(seq, Ordering::Release);
+    push_event(EV_FAULT, pack_fault(&view), seq);
+}
+
+fn attach_fault_frame(frame: u32) {
+    if let Some(view) = claim_fault(tick(), true) {
+        publish_fault(view, Some(frame));
+    }
+}
+
+fn flush_stale_fault() {
+    if let Some(view) = claim_fault(tick(), false) {
+        publish_fault(view, None);
+    }
+}
+
+/// `[[main+0x52c3940]]`: the mask in the low 10 bits, then the ten words.
+unsafe fn read_fault_table() -> (Option<u16>, Option<[u32; FAULT_WORD_COUNT]>) {
+    let slot = TEXT_BASE.load(Ordering::Relaxed) + FAULT_OBJECT as u64;
+    let cell = read_u64(slot);
+    if cell < 0x10000 {
+        return (None, None);
+    }
+    let object = read_u64(cell);
+    if object < 0x10000 || !object.is_multiple_of(4) {
+        return (None, None);
+    }
+    let mask = (read_u64(object) & 0x3ff) as u16;
+    let mut words = [0; FAULT_WORD_COUNT];
+    for (index, word) in words.iter_mut().enumerate() {
+        *word = read_u32(object + FAULT_WORD_AT as u64 + index as u64 * 4);
+    }
+    (Some(mask), Some(words))
 }
 
 #[skyline::hook(offset = model::DESYNC_OFFSET, inline)]
@@ -852,6 +1028,7 @@ impl Writer {
     }
 
     fn drain_events(&mut self) {
+        flush_stale_fault();
         let head = EVENT_HEAD.load(Ordering::Acquire);
         if head.saturating_sub(self.event_tail) > EVENT_RING as u64 {
             self.event_drops = self
@@ -891,7 +1068,24 @@ impl Writer {
                 }
             }
             line.clear();
-            let _ = describe(&event, &mut line);
+            if event.code == EV_FAULT {
+                let mut view = unpack_fault(event.a);
+                if event.b != 0 {
+                    let slot = &FAULT_LOG[((event.b - 1) % FAULT_LOG_RING as u64) as usize];
+                    if slot.seq.load(Ordering::Acquire) == event.b
+                        && slot.words_ok.load(Ordering::Relaxed) == 1
+                    {
+                        let mut words = [0; FAULT_WORD_COUNT];
+                        for (word, cell) in words.iter_mut().zip(slot.words.iter()) {
+                            *word = cell.load(Ordering::Relaxed);
+                        }
+                        view.words = Some(words);
+                    }
+                }
+                let _ = describe_fault(event.tick, &view, &mut line);
+            } else {
+                let _ = describe(&event, &mut line);
+            }
             let _ = line.write_char('\n');
             let text = line.as_bytes();
             if used + text.len() > batch.len() {
@@ -1215,6 +1409,15 @@ fn start_writer() -> bool {
     }
 }
 
+unsafe fn word_matches(offset: usize, expected: u32) -> bool {
+    let base = getRegionAddress(Region::Text) as usize;
+    let end = getRegionAddress(Region::Rodata) as usize;
+    let address = base + offset;
+    address.is_multiple_of(4)
+        && address + 4 <= end
+        && core::ptr::read_unaligned(address as *const u32) == expected
+}
+
 unsafe fn guard_matches(site: &Site) -> bool {
     let base = getRegionAddress(Region::Text) as usize;
     let end = getRegionAddress(Region::Rodata) as usize;
@@ -1289,6 +1492,20 @@ pub fn main() {
         skyline::install_hook!(desync_detector_playback_check);
         let _ = write!(report, "{}playback", if lockstep { "," } else { "" });
     }
+    let fault_ready = unsafe {
+        guard_matches(&FAULT_ARM)
+            && word_matches(FAULT_CALL_OFFSET, FAULT_CALL_WORD)
+            && word_matches(FAULT_STORE_OFFSET, FAULT_STORE_WORD)
+            && word_matches(FAULT_SESSION_OFFSET, FAULT_SESSION_WORD)
+    };
+    if fault_ready {
+        skyline::install_hook!(desync_detector_fault_arm);
+    }
+    let _ = write!(
+        report,
+        " fault={}",
+        if fault_ready { "installed" } else { "skipped" }
+    );
     // Each text route goes in only when all of its own guards match.
     let mut installed = [false; dialog::ROUTES.len()];
     for (ready, route) in installed.iter_mut().zip(dialog::ROUTES) {

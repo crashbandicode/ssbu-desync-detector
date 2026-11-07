@@ -1,4 +1,103 @@
-# README GIF worker — 2026-11-06 (current)
+# Why frame 8444 was the last one — 2026-11-07 (current)
+
+The frame the plugin records is the halfword stored by `stp w11, w8, [x9]`
+at `.16d6cdc`, inside `.16d5e50`. The next call did not reach that store.
+The prologue returns at `.16d6c8c` when session byte `+0x62` is 6
+(`cmp`/`b.eq` at `.16d5e7c`). That byte is written with 6 at `.16cd544` by
+`.16cced0`. During a match the call that does it without passing the
+peer-abort hook is `.16d8d38`, and it runs when the halfword at session
+`+0x66` decrements to 0.
+
+That halfword is set to 30 at `.16d5eec` on the pass where `.16acd30`
+returns nonzero. `.16acd30` reads the object at `[main+0x52c3940]`. It
+returns 0 while the word at `+0x18` is nonzero. It returns 1..9 for the
+first nonzero word at `+0x1c`, `+0x20`, `+0x24`, `+0x28`, `+0x2c`, `+0x30`,
+`+0x34`, `+0x38`, `+0x3c`, if the low 10 bits of the object's first word are
+set. Each later pass that still stores a frame decrements `+0x66`. The pass
+that stored 8444 is the one that reached 0, so it stored the frame and then
+set the phase to 6. The next pass returned at the prologue. This path does
+not call `.16ce7c0`, so there is no `sync_end`. The plugin's peer-end hook
+is the receive side (`.16cc2c4`); this decision is local, so there is no
+`peer_end`.
+
+Which of the nine words was set is not in the Switch log. The release hooks
+do not write `+0x62` and do not call `.16acd30`. `heap_allocations=0`,
+`evidence_losses=0`. A boot cannot recover the word from a match that
+already ended.
+
+2026-11-07: the fourteen functions that load `main+0x52c3940` were followed
+with the object pointer kept live. The only store into the nine fault words
+is entry 2, the word at `+0x20`, incremented at `.1363884` and `.13638b0`
+inside `.1363420`. That function takes a station index and a second code.
+When the second code is 8 it skips the increment. Otherwise, if this
+station's bit is set in the word at `+0xc`, the low 10 bits of the first
+word are nonzero, byte `+8` is nonzero, and bit 2 of that first word is set,
+it appends a timestamp and increments `+0x20` when the gaps in that list are
+all within the limit copied to `+0x218`/`+0x21c`, or the list length reaches
+the limit at `+0x220`. The counter saturates at 999999999. Any nonzero value
+makes `.16acd30` return 2 when `+0x18` and `+0x1c` are still zero.
+
+Match setup at `.14d9414` writes that mask and copies the two limits from one
+of two config blocks. It does not publish the object pointer anywhere else.
+The other eight fault words are not stored by any of those fourteen
+functions. The handler sits in an unnamed table of (function, zero pointer,
+0x403) records at `0x3c8ade0`, `0x3c8b9b0`, and `0x3c8c4c0`.
+
+Tangent `f774f0f3-t1` finished. The card's `libarcropolis.nro` is stock
+4.1.1 (`92171b2f…`, 2076672 bytes). There is no ARCropolis checkout here.
+The panic is an out-of-bounds read in the MSBT patch handler
+(`arcropolis+0x1ea98`); `+0x171258` is the shared `brk #1`. No fork edit.
+
+2026-11-07 17:16Z: DBI was already open (`mtp://-_DBI_XAW10006803734/`).
+Deleted the 14 generated files under `ultimate/arcropolis/cache`
+(13.0.3, 13.0.4, 13.0.5, including the two patched bins). Config, resources,
+and mods were left. The newest Smash crash before that delete is Atmosphere
+0xA8, BRK at `arcropolis+0x171258` (caller `+0x171914`), report
+`01794071226_01006a800016e000.log`. Tangent `f774f0f3-t1`, Cursor chat
+`4f3d6879-87e4-45c6-b398-2ba6b3f35149`, owns the fork fix. The operator
+later said to leave that tangent alone. No NRO, no commit.
+
+# Fault-table log — 2026-11-07
+
+The detector now stages the stored return of `.16acd30` at `.16d5ee8`
+(session `+0x5e`), the low 10 bits of the object's first word, and the ten
+words at `+0x18` through `+0x3c`. The frame hook claims that snapshot while
+it is at most 50 ms old. After 100 ms the writer emits the line with
+`frame=none`. One `events.log` line per arming:
+
+`<tick> fault code=<n> frame=<frame|none> mask=<0xhhh|none> words=<10 integers|unread>`
+
+Install is independent of the lockstep set. The install line says
+`fault=installed` or `fault=skipped`. A guard or relied-on word mismatch
+does not install the hook. Design: `docs/FAULT-CODE.md`. Compliance:
+`docs/COMPLIANCE-FAULT.md`.
+
+The operator ordered minor version 0.4.0 and a card install once the
+Switch is connected. This commit is that version: the fault line and the
+Canceled-notice matcher. Branch `readme-gifs`. The card still has 0.3.0
+until the install receipt exists. Eden was not ordered. The next real
+match after the install is what records `code=`.
+
+# Canceled notice — 2026-11-07
+
+The plain route `.377a120` and the argument route `.37a2660` now append a
+reason to the English labels `Canceled`, `Canceled.`, and the reconnect
+sentence "You disconnected in the middle of your last online battle." A
+notice with no session verdict is left unchanged. The same plain hook logs
+`notice_text` with the kind, the caller of `.377a120` (saved LR at FP+8),
+and `verdict=withheld` when there is no session verdict. No new hook. Host
+tests and clippy pass. Not built as an NRO, not installed, not committed.
+Design: `docs/CANCELED-NOTICE.md`. Playbook `3f96569`.
+
+The battle-end popup openers at `.15657e8` and `.15665a8` pass a message id
+into `.32f1bb0` only after `.3291150` accepts it. This incident had no
+`sync_end` and no `communication_text`, so that opener did not run. The
+orange "Canceled" word is the matching-status label
+`mnu_pallet_matching_canceled` (and two other labels that display the same
+word). Which caller set it is what `notice_text` is for, on the next boot
+of this source.
+
+# README GIF worker — 2026-11-06
 
 Worker Cursor chat f774f0f3, live pair grok-4.7 high. Watcher unit
 `cursor-model-watcher-f774f0f3.service` (stop file `/tmp/cursor-model-watcher-f774f0f3/stop`,
@@ -25,7 +124,9 @@ Not reproduced, after two no-TrainingRooms pairs (`dd-gif-b2`/`dd-gif-a2`, then 
 `docs/media/referee.gif` is still the 2026-10-29 unmodded replay refusal. It was scaled from
 480×270 / 11.1 s to 1280×720 / 9.6 s. It was not re-recorded.
 
-Hosts released 13:11Z. No Eden process left by this worker. Next: none for this task.
+Hosts released 13:11Z. No Eden process left by this worker.
+
+XPS (2026-11-06 ~13:14Z): machine is free (175G disk, ~26 GiB, no Eden, displays :116 and :117 free). Its playbook checkout is `618cc82`, which admits `host=xps` and sets `LINUX_MAX_EDEN` to 1 until two instances have been tested on that machine. A pair was not started. The 0.3.0 NRO and the tile-cursor NRO are not on that host. Next: none unless the playbook's XPS limit is raised.
 
 # Popup-route worker — 2026-11-06 ~05:00Z addendum detector-stage-pilot-1 DONE (history)
 

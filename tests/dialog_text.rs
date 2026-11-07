@@ -6,7 +6,10 @@ mod disconnect;
 #[path = "../src/model.rs"]
 mod model;
 
-use dialog::{append_in_frame, append_reason, is_communication_error, Frame, Route, CAPACITY};
+use dialog::{
+    append_in_frame, append_reason, is_communication_error, is_disconnect_notice, Frame, Route,
+    CAPACITY,
+};
 use disconnect::Reason;
 use std::cell::Cell;
 
@@ -192,9 +195,9 @@ fn run_case(
             sp,
             fp,
             len_override.unwrap_or(units.len()),
-            || {
+            |_| {
                 asked.set(true);
-                Reason::Desync
+                Some(Reason::Desync)
             },
         )
     };
@@ -470,6 +473,28 @@ fn repeated_setting_of_an_augmented_message_adds_no_second_reason() {
 }
 
 #[test]
+fn notice_text_names_the_kind_the_caller_and_a_withheld_verdict() {
+    let mut line = model::Line::<160>::new();
+    model::describe(
+        &model::RawEvent {
+            tick: 9,
+            code: model::EV_NOTICE_TEXT,
+            a: u64::from(dialog::NOTICE_CANCELED)
+                | dialog::PLAIN.code << 8
+                | model::NOTICE_VERDICT_WITHHELD << 16
+                | 8 << 32,
+            b: 0x1eef838,
+        },
+        &mut line,
+    )
+    .unwrap();
+    assert_eq!(
+        core::str::from_utf8(line.as_bytes()).unwrap(),
+        "9 notice_text kind=canceled text_units=8 route=plain caller=0x1eef838 verdict=withheld"
+    );
+}
+
+#[test]
 fn each_call_owns_its_buffer_and_log_reason_matches_the_ui_reason() {
     let (mut first, len) = native("A communication error has occurred.");
     let (mut second, _) = native("A communication error has occurred.");
@@ -498,4 +523,63 @@ fn each_call_owns_its_buffer_and_log_reason_matches_the_ui_reason() {
             )
         );
     }
+}
+
+#[test]
+fn canceled_notice_and_reconnect_warning_take_the_same_reason_on_both_routes() {
+    let warning = "You disconnected in the middle of your last online battle.\n\nIf you disconnect too many times, you may be restricted\nfrom online battles for a while.";
+    for message in ["Canceled", "Canceled.", warning] {
+        let (result, after, asked) = run_case(&dialog::PLAIN, message, None, Tamper::None);
+        let (reason, new_len) = result.expect(message);
+        assert!(asked, "{message}");
+        assert_eq!(reason, Reason::Desync);
+        assert_eq!(
+            String::from_utf16(&after[..new_len]).unwrap(),
+            format!("{message}\n\nReason: {}", Reason::Desync.text())
+        );
+        let (again, _, _) = run_case(&dialog::ARGS, message, None, Tamper::None);
+        assert!(again.is_some(), "{message} on args");
+    }
+}
+
+#[test]
+fn other_cancel_wording_is_left_alone() {
+    for message in [
+        "Cancel",
+        "Change canceled.",
+        "Expedition Canceled",
+        "Canceled posting.",
+        "The Elite Smash battle\nhas been canceled.",
+        "You have been disconnected due to inactivity.",
+    ] {
+        let (mut text, len) = native(message);
+        let before = text;
+        assert!(!is_disconnect_notice(&text[..len]), "{message}");
+        assert_eq!(append_reason(&mut text, len, Reason::Unknown), None);
+        assert_eq!(text, before);
+    }
+}
+
+#[test]
+fn a_withheld_verdict_leaves_the_canceled_notice_unchanged() {
+    let mut frame = NativeFrame::new(&dialog::PLAIN);
+    let units: Vec<u16> = "Canceled".encode_utf16().collect();
+    frame.buffer(&dialog::PLAIN)[..units.len()].copy_from_slice(&units);
+    let asked = Cell::new(false);
+    let result = unsafe {
+        append_in_frame(
+            &dialog::PLAIN,
+            TEXT_BASE,
+            frame.sp,
+            frame.sp + dialog::PLAIN.fp,
+            units.len(),
+            |_| {
+                asked.set(true);
+                None
+            },
+        )
+    };
+    assert!(asked.get());
+    assert!(result.is_none());
+    assert_eq!(&frame.buffer(&dialog::PLAIN)[..units.len()], &units[..]);
 }

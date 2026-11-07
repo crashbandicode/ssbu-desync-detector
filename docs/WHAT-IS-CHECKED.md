@@ -114,7 +114,7 @@ console only, different settings, or decisions based on local data such as
 the clock, files, frame pacing, menus, effect handles or the unchecked RNGs).
 
 **Cannot move it**
-- Reading memory or registers, logging, file I/O on the plugin's own thread.
+- Reading memory or registers, logging, file I/O on the plugin's own thread. The fault-table hook at `.16d5ee8` is in this group: it reads session `+0x5e`, the object at `[[main+0x52c3940]]`, and the frame the existing frame hook already reads, and it writes none of them. The original four instructions still run.
 - Render-only resources: models, textures, materials, audio waveforms, and
   motions that drive nothing the simulation reads.
 - Visibility and draw flags.

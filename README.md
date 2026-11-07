@@ -53,6 +53,16 @@ Copy `libssbu_desync_detector.nro` to
 to `sd:/ultimate/ssbu-desync-detector/`. Recordings are kept only for matches
 that did not end normally, and the log is capped, so it stays small.
 
+[0.4.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.4.0)
+(2026-11-07) writes one `events.log` line when Smash arms the countdown that
+stops the frame counter: the fault-table number (`code`), the frame, the
+mask, and the ten table words. It also appends the same evidence-based
+reason to the English labels "Canceled", "Canceled.", and the reconnect
+warning "You disconnected in the middle of your last online battle.", and
+logs which function asked for that text. A notice with no session verdict
+is left unchanged. Host tests cover the line and those labels. Not yet
+seen on a Switch or in Eden.
+
 [0.3.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.3.0)
 (2026-11-06) adds the disconnect reason and telemetry below. In Eden the
 game's "A connection error has occurred." pop-up then shows the reason.

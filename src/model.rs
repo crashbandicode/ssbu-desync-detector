@@ -101,12 +101,48 @@ pub const PLAYBACK_CHECK: Site = Site {
     ],
 };
 
-pub const SITES: [&Site; 5] = [
+/// `orr w8, wzr, #0x1e0000` on the pass that arms the 30-frame countdown,
+/// after `.16acd30` returned nonzero and that byte was stored at session
+/// `+0x5e`. The next three words store the countdown and the armed flag.
+/// Straight line: a 16-byte far patch relocates no branch and no call.
+pub const FAULT_ARM_OFFSET: usize = 0x16d5ee8;
+pub const FAULT_ARM: Site = Site {
+    name: "fault_arm",
+    offset: FAULT_ARM_OFFSET,
+    guard: [
+        0xe8, 0x0f, 0x0f, 0x32, 0x68, 0x66, 0x00, 0xb9, 0xe8, 0x03, 0x00, 0x32, 0x68, 0x8e, 0x01,
+        0x39, 0x68, 0x02, 0x40, 0x39, 0x1f, 0x05, 0x00, 0x71, 0xc1, 0xfc, 0xff, 0x54, 0x61, 0x06,
+        0x40, 0x39, 0x3f, 0xfc, 0x03, 0xf1, 0x60, 0xfc, 0xff, 0x54, 0x08, 0x2f, 0x46, 0xf9, 0x16,
+        0x05, 0x40, 0xf9, 0xc8, 0x46, 0x40, 0xf9, 0x09, 0x00, 0x94, 0x52, 0x09, 0x69, 0x69, 0xb8,
+        0xea, 0x03, 0x00, 0x32,
+    ],
+};
+
+/// `bl .16acd30`. Its return is the byte stored by `FAULT_STORE`.
+pub const FAULT_CALL_OFFSET: usize = 0x16d5ec4;
+pub const FAULT_CALL_WORD: u32 = 0x97ff_5b9b;
+/// `strb w0, [x19, #0x5e]`.
+pub const FAULT_STORE_OFFSET: usize = 0x16d5ecc;
+pub const FAULT_STORE_WORD: u32 = 0x3901_7a60;
+/// `mov x19, x0`, the session pointer the arming stores use.
+pub const FAULT_SESSION_OFFSET: usize = 0x16d5e90;
+pub const FAULT_SESSION_WORD: u32 = 0xaa00_03f3;
+/// `.text` slot holding the fault-table wrapper. The object is `*(*slot)`.
+pub const FAULT_OBJECT: usize = 0x52c3940;
+/// Session byte written with `.16acd30`'s return on the arming pass.
+pub const FAULT_CODE_AT: usize = 0x5e;
+/// First of the ten words `.16acd30` walks. Word 0 suppresses; words 1..9
+/// are the returns 1..9.
+pub const FAULT_WORD_AT: usize = 0x18;
+pub const FAULT_WORD_COUNT: usize = 10;
+
+pub const SITES: [&Site; 6] = [
     &FRAME_CHECK,
     &DESYNC,
     &SYNC_END,
     &PEER_ABORT,
     &PLAYBACK_CHECK,
+    &FAULT_ARM,
 ];
 
 /// `.text` slot holding a pointer to the RNG manager pointer; the manager
@@ -418,6 +454,15 @@ pub const EV_RECORDING: u8 = 7;
 pub const EV_COMMUNICATION_TEXT: u8 = 8;
 /// Frames stopped arriving; an observation of coverage, never a native end.
 pub const EV_FRAME_GAP: u8 = 9;
+/// A Canceled notice or the reconnect warning was prepared. Not proof it was
+/// drawn, and not a claim about why the game chose it.
+pub const EV_NOTICE_TEXT: u8 = 10;
+/// `.16acd30` returned nonzero and the match armed its countdown.
+pub const EV_FAULT: u8 = 11;
+/// `dialog` notice kinds, in `EV_NOTICE_TEXT` bits 0..8.
+pub const NOTICE_KINDS: [&str; 3] = ["canceled", "canceled_period", "reconnect_warning"];
+/// `EV_NOTICE_TEXT` bits 16..24 when the session had no verdict.
+pub const NOTICE_VERDICT_WITHHELD: u64 = 0xff;
 pub const COMMUNICATION_REASONS: [&str; 6] = [
     "desync",
     "local_link",
@@ -488,6 +533,45 @@ impl EndState {
     }
 }
 
+/// A zero return does not arm the countdown, so it is not a log line.
+pub fn fault_code_is_logged(code: u8) -> bool {
+    code != 0
+}
+
+/// One arming of the fault table. `words`, when read, are `+0x18` through
+/// `+0x3c` in that order.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FaultView {
+    pub code: u8,
+    pub frame: Option<u32>,
+    pub mask: Option<u16>,
+    pub words: Option<[u32; FAULT_WORD_COUNT]>,
+}
+
+/// `code`, `frame` and `mask` packed into an event payload. The ten words
+/// travel beside it; they do not fit here.
+pub fn pack_fault(view: &FaultView) -> u64 {
+    let mut packed = u64::from(view.code);
+    if let Some(frame) = view.frame {
+        packed |= u64::from(frame) << 8;
+        packed |= 1 << 40;
+    }
+    if let Some(mask) = view.mask {
+        packed |= u64::from(mask & 0x3ff) << 41;
+        packed |= 1 << 51;
+    }
+    packed
+}
+
+pub fn unpack_fault(packed: u64) -> FaultView {
+    FaultView {
+        code: packed as u8,
+        frame: (packed & 1 << 40 != 0).then_some((packed >> 8) as u32),
+        mask: (packed & 1 << 51 != 0).then_some((packed >> 41) as u16 & 0x3ff),
+        words: None,
+    }
+}
+
 /// One `events.log` line (without the newline) for a queued event.
 pub fn describe(event: &RawEvent, out: &mut impl fmt::Write) -> fmt::Result {
     let (a, b) = (event.a, event.b);
@@ -539,6 +623,31 @@ pub fn describe(event: &RawEvent, out: &mut impl fmt::Write) -> fmt::Result {
                 .copied()
                 .unwrap_or("unknown")
         ),
+        EV_NOTICE_TEXT => {
+            let verdict = a >> 16 & 0xff;
+            write!(
+                out,
+                "notice_text kind={} text_units={} route={} caller=0x{:x} verdict={}",
+                NOTICE_KINDS
+                    .get((a & 0xff) as usize)
+                    .copied()
+                    .unwrap_or("unknown"),
+                a >> 32 & 0xffff,
+                COMMUNICATION_ROUTES
+                    .get((a >> 8 & 0xff) as usize)
+                    .copied()
+                    .unwrap_or("unknown"),
+                b,
+                if verdict == NOTICE_VERDICT_WITHHELD {
+                    "withheld"
+                } else {
+                    COMMUNICATION_REASONS
+                        .get(verdict as usize)
+                        .copied()
+                        .unwrap_or("unknown")
+                }
+            )
+        }
         EV_FRAME_GAP => write!(
             out,
             "frame_gap kind={} slot={} frame={} last_frame_tick={b}",
@@ -586,6 +695,33 @@ pub fn describe(event: &RawEvent, out: &mut impl fmt::Write) -> fmt::Result {
             if a >> 57 & 1 != 0 { "game" } else { "minimal" }
         ),
         other => write!(out, "unknown code={other} a=0x{a:x} b=0x{b:x}"),
+    }
+}
+
+/// The fault-table line. `words` absent means the object could not be read,
+/// which is not the same as ten zeros.
+pub fn describe_fault(tick: u64, view: &FaultView, out: &mut impl fmt::Write) -> fmt::Result {
+    write!(out, "{tick} fault code={} ", view.code)?;
+    match view.frame {
+        Some(frame) => write!(out, "frame={frame} ")?,
+        None => write!(out, "frame=none ")?,
+    }
+    match view.mask {
+        Some(mask) => write!(out, "mask=0x{mask:x} ")?,
+        None => write!(out, "mask=none ")?,
+    }
+    match view.words {
+        Some(words) => {
+            write!(out, "words=")?;
+            for (index, word) in words.iter().enumerate() {
+                if index != 0 {
+                    write!(out, ",")?;
+                }
+                write!(out, "{word}")?;
+            }
+            Ok(())
+        }
+        None => write!(out, "words=unread"),
     }
 }
 
@@ -811,17 +947,63 @@ mod tests {
     #[test]
     fn guards_start_with_the_hooked_instructions() {
         // stp w11,w8,[x9] / ldrb w8,[x0,#0x5f] / sub sp,sp,#0xb0 /
-        // ldrb w1,[x19,#1] / ldr w9,[x22,#4]
+        // ldrb w1,[x19,#1] / ldr w9,[x22,#4] / orr w8,wzr,#0x1e0000
         let heads = [
             [0x2b, 0x21, 0x00, 0x29],
             [0x08, 0x7c, 0x41, 0x39],
             [0xff, 0xc3, 0x02, 0xd1],
             [0x61, 0x06, 0x40, 0x39],
             [0xc9, 0x06, 0x40, 0xb9],
+            [0xe8, 0x0f, 0x0f, 0x32],
         ];
         for (site, head) in SITES.iter().zip(heads) {
             assert_eq!(site.guard[..4], head, "{}", site.name);
         }
+    }
+
+    #[test]
+    fn fault_line_names_the_code_and_every_word() {
+        assert!(!fault_code_is_logged(0));
+        assert!(fault_code_is_logged(2));
+        let view = FaultView {
+            code: 2,
+            frame: Some(8414),
+            mask: Some(0x3e6),
+            words: Some([0, 0, 1, 0, 0, 0, 0, 0, 0, 0]),
+        };
+        assert_eq!(unpack_fault(pack_fault(&view)).code, 2);
+        assert_eq!(unpack_fault(pack_fault(&view)).frame, Some(8414));
+        assert_eq!(unpack_fault(pack_fault(&view)).mask, Some(0x3e6));
+        let mut line = Line::<192>::new();
+        describe_fault(5, &view, &mut line).unwrap();
+        assert_eq!(
+            core::str::from_utf8(line.as_bytes()).unwrap(),
+            "5 fault code=2 frame=8414 mask=0x3e6 words=0,0,1,0,0,0,0,0,0,0"
+        );
+        let unread = FaultView {
+            code: 2,
+            frame: None,
+            mask: None,
+            words: None,
+        };
+        line.clear();
+        describe_fault(5, &unread, &mut line).unwrap();
+        assert_eq!(
+            core::str::from_utf8(line.as_bytes()).unwrap(),
+            "5 fault code=2 frame=none mask=none words=unread"
+        );
+        let longest = FaultView {
+            code: 255,
+            frame: Some(u32::MAX),
+            mask: Some(0x3ff),
+            words: Some([u32::MAX; FAULT_WORD_COUNT]),
+        };
+        line.clear();
+        describe_fault(u64::MAX, &longest, &mut line).unwrap();
+        assert!(line.as_bytes().len() <= 192);
+        assert!(core::str::from_utf8(line.as_bytes())
+            .unwrap()
+            .contains("code=255"));
     }
 
     #[test]
