@@ -56,8 +56,9 @@ that did not end normally, and the log is capped, so it stays small.
 0.5.0 (unreleased) adds read-only match telemetry to `events.log`: the rules and fault-table limits at an online
 match's start, each KO the fault table counts, which peer-end path ended the session, the phase-6 end with its
 network result, and one `session_summary` line per session. With `ssbu-stall-press-carry` 0.2.0 loaded, the summary
-also shows how many presses and stick flicks that plugin carried. Host tests cover every line. Not yet seen in a
-match. See [docs/MATCH-TELEMETRY.md](docs/MATCH-TELEMETRY.md).
+also shows how many presses and stick flicks that plugin carried. The last online session's verdict is also kept in
+`last-session.txt`. The dialogs are unchanged from 0.4.0. Host tests cover every line. Not yet seen in a match. See
+[docs/MATCH-TELEMETRY.md](docs/MATCH-TELEMETRY.md).
 
 [0.4.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.4.0)
 (2026-11-07) writes one `events.log` line when Smash arms the countdown that

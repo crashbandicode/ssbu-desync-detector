@@ -7,7 +7,13 @@
 - **Change:** `src/matchlog.rs` (sites, events 12–16, packing, line text, host tests) and the hooks and writer in
   `src/runtime.rs`. The lines and sites are in `docs/MATCH-TELEMETRY.md`.
 - **Design and trace:** `smash-training-lobby/artifacts/phase23/double-input/DESIGN-desync-detector-0.5.0.md`.
-- **Builds:** release `27faf8c0…` (69632 bytes), diag `edcef73a…`. No Eden run and no match yet.
+- **Builds:** release `dc8ee988…` (73728 bytes), diag `a42d6c51…`. No Eden run and no match yet.
+- **Dialog wording, the operator 2026-11-12 (via the primary 19:06Z): option 1.** The dialogs stay exactly 0.4.0's
+  (`PeerEnded` keeps "The other console ended the session."; the reconnect warning keeps the game's text plus the
+  reason). `2f76d36` (an evidence build that said "Your opponent disconnected" and replaced the warning) is superseded
+  and must not be run or shipped. Why: the peer's end message carries kind 2 for every abnormal end, including the
+  peer timing this console out, and a peer that quits sends nothing.
+- **Kept:** `last-session.txt` (a record only) and `last_session=… penalty_flag=unknown` in the summary.
 - **Next:**
   - the Eden proof pair with `ssbu-stall-press-carry` 0.1.0 and 0.2.0;
   - staging the card install over 0.4.0 `a31ad657…` (the primary installs it).

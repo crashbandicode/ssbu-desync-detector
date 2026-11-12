@@ -10,7 +10,7 @@
 use crate::dialog;
 use crate::disconnect::Reason;
 use crate::evidence::Evidence;
-use crate::lastsession::{self, Choice, LastSession, Text};
+use crate::lastsession::{self, LastSession};
 use crate::matchlog::{
     self, describe_ko, describe_match_start, describe_peer_path, describe_session_end, describe_summary,
     pack_ko, pack_peer_path, pack_session_end, phase6_path, unpack_ko, unpack_peer_path, unpack_session_end,
@@ -33,7 +33,7 @@ use core::fmt::Write as _;
 use skyline::hooks::{getRegionAddress, InlineCtx, Region};
 use skyline::nn;
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 
 const DATA_DIR: &str = "sd:/ultimate/ssbu-desync-detector";
 /// Files `frames-0.bin` .. `frames-7.bin` (and `match-N.bin`), reused in rotation.
@@ -225,29 +225,21 @@ fn publish_event(event: &RawEvent) {
     slot.seq.store(index + 1, Ordering::Release);
 }
 
-/// The last online session's stored verdict (`LastSession::code`), published by the writer thread: read from
-/// `last-session.txt` at boot, `in_progress` when an online session starts, the verdict when it stops.
-static LAST_SESSION: AtomicU8 = AtomicU8::new(0);
-
-fn disconnect_reason(now: u64, kind: Option<u8>) -> Option<Reason> {
+fn disconnect_reason(now: u64, notice: bool) -> Option<Reason> {
     // A communication-error sentence is itself the disconnect, so missing
     // evidence still says Unknown. The Canceled notice and the reconnect
     // warning share words with ordinary cancels, so they stay as the game
-    // wrote them unless this session has a verdict (`lastsession::choose`).
-    let text = match kind {
-        None => Text::CommunicationError,
-        Some(dialog::NOTICE_RECONNECT) => Text::ReconnectWarning,
-        Some(_) => Text::Canceled,
-    };
-    let last = LastSession::from_code(LAST_SESSION.load(Ordering::Acquire));
-    match lastsession::choose(text, DISCONNECT_EVIDENCE.reason(now), last) {
-        Choice::Append(reason) => Some(reason),
-        Choice::Leave | Choice::Replace(_) => None,
+    // wrote them unless this session has a verdict.
+    let precise = DISCONNECT_EVIDENCE.reason(now);
+    if notice {
+        precise
+    } else {
+        Some(precise.unwrap_or(Reason::Unknown))
     }
 }
 
 /// The body of every text hook: `route` says where the count and the buffer
-/// are. Only the count register is changed, and only after an edit.
+/// are. Only the count register is changed, and only after an append.
 unsafe fn communication_text(route: &dialog::Route, ctx: &mut InlineCtx) {
     let now = tick();
     // SAFETY: installation matched every guard of `route`, which fixes the
@@ -260,31 +252,19 @@ unsafe fn communication_text(route: &dialog::Route, ctx: &mut InlineCtx) {
     // The plain function's caller is who asked for this label. Read it only
     // after the frame check inside `notice_kind_in_frame` has accepted FP.
     let kind = dialog::notice_kind_in_frame(route, sp, fp, len);
-    // The reconnect warning about a session the other console ended gets the replacement text; the dialog itself
-    // is untouched. Asking `choose` with no live verdict: a stored peer end is the only way to `Replace`.
-    let last = LastSession::from_code(LAST_SESSION.load(Ordering::Acquire));
-    let replaced = match (kind, lastsession::choose(Text::ReconnectWarning, None, last)) {
-        (Some(dialog::NOTICE_RECONNECT), Choice::Replace(text)) => {
-            dialog::replace_in_frame(route, text_base, sp, fp, len, text)
-        }
-        _ => None,
-    };
-    if let Some(new_len) = replaced {
-        ctx.registers[route.count].set_w(new_len as u32);
-        publish_event(&RawEvent {
-            tick: now,
-            code: model::EV_NOTICE_TEXT,
-            a: u64::from(dialog::NOTICE_RECONNECT)
-                | route.code << 8
-                | model::NOTICE_VERDICT_REPLACED << 16
-                | (len as u64) << 32,
-            b: plain_caller(route, text_base, fp),
-        });
-        return;
-    }
-    let appended = dialog::append_in_frame(route, text_base, sp, fp, len, |_| disconnect_reason(now, kind));
+    let appended = dialog::append_in_frame(route, text_base, sp, fp, len, |notice| {
+        disconnect_reason(now, notice)
+    });
     if let Some(kind) = kind {
-        let caller = plain_caller(route, text_base, fp);
+        let caller = if route.caller.is_none() {
+            let saved = fp.checked_add(dialog::PLAIN_CALLER_LR).unwrap_or(0) as *const u64;
+            let lr = saved.read_unaligned();
+            lr.checked_sub(text_base)
+                .filter(|offset| *offset < 0x1000_0000)
+                .unwrap_or(0)
+        } else {
+            0
+        };
         let verdict = appended
             .map(|(reason, _)| u64::from(reason.code()))
             .unwrap_or(model::NOTICE_VERDICT_WITHHELD);
@@ -307,22 +287,6 @@ unsafe fn communication_text(route: &dialog::Route, ctx: &mut InlineCtx) {
             b: new_len as u64,
         });
     }
-}
-
-/// The plain route's caller (who asked for this label), as a `.text` offset; 0 on the args route.
-///
-/// # Safety
-/// The route's frame check has accepted FP (`notice_kind_in_frame` returned a kind).
-unsafe fn plain_caller(route: &dialog::Route, text_base: u64, fp: u64) -> u64 {
-    if route.caller.is_some() {
-        return 0;
-    }
-    let saved = fp.checked_add(dialog::PLAIN_CALLER_LR).unwrap_or(0) as *const u64;
-    saved
-        .read_unaligned()
-        .checked_sub(text_base)
-        .filter(|offset| *offset < 0x1000_0000)
-        .unwrap_or(0)
 }
 
 /// Formatter epilogue, before MOV w0,w20. Its guarded frame contains the
@@ -1060,10 +1024,9 @@ fn delete(path: &mut Path) {
     }
 }
 
-/// Publishes the last online session's verdict for the text hook, then writes it to `last-session.txt` for the
-/// next boot. Writer thread only.
+/// Writes the last online session's verdict to `last-session.txt` (a record only: no text depends on it). Writer
+/// thread only.
 fn store_last_session(last: LastSession) {
-    LAST_SESSION.store(last.code(), Ordering::Release);
     let mut text = Line::<64>::new();
     let _ = last.write_line(&mut text);
     if let Some(mut file) = NxFile::create(&mut path(format_args!("{DATA_DIR}/{}", lastsession::FILE_NAME))) {
@@ -1071,7 +1034,7 @@ fn store_last_session(last: LastSession) {
     }
 }
 
-/// Reads `last-session.txt` (its first 64 bytes) into `LAST_SESSION`. Writer thread, at start.
+/// Reads `last-session.txt` (its first 64 bytes), for the boot's `last_session_loaded` line. Writer thread, at start.
 fn load_last_session() -> LastSession {
     let mut bytes = [0u8; 64];
     let mut file = path(format_args!("{DATA_DIR}/{}", lastsession::FILE_NAME));
@@ -1089,9 +1052,7 @@ fn load_last_session() -> LastSession {
             0
         }
     });
-    let last = LastSession::parse(&bytes[..read]);
-    LAST_SESSION.store(last.code(), Ordering::Release);
-    last
+    LastSession::parse(&bytes[..read])
 }
 
 fn read_first_byte(path: &mut Path) -> Option<u8> {
@@ -1337,7 +1298,7 @@ impl Writer {
         self.session_kind = kind;
         PLAYBACK_MISMATCHES.store(0, Ordering::Release);
         if kind == KIND_ONLINE {
-            // Until this session's stop is seen, a later reconnect warning keeps the game's text.
+            // Until this session's stop is seen, the record says it is still running.
             store_last_session(LastSession::InProgress);
             self.pending = Some(Pending {
                 slot,

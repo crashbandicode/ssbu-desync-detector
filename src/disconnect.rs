@@ -26,11 +26,7 @@
 //!    handover to another interface included) is never a fault, and no text
 //!    names hardware.
 //! 3. [`Reason::PeerEnded`]: the other console sent an end message whose
-//!    reason is not the normal one (`PEER_END_NORMAL_REASON`). That message
-//!    (type 7) is sent from the sender's own lockstep end (`.16ce908`, inside
-//!    `.16ce7c0`). The text says the opponent disconnected. The abort function
-//!    `.16ccad0` (0.5.0's path B) is this console's own decision and never
-//!    counts here.
+//!    reason is not the normal one (`PEER_END_NORMAL_REASON`).
 //! 4. [`Reason::Timeout`]: the session ended on peer silence or a session
 //!    timeout. Silence is not proof that anyone left on purpose.
 //! 5. [`Reason::Unknown`]: an online session is in scope but nothing above
@@ -155,7 +151,7 @@ impl Reason {
             Reason::LocalStatus => {
                 "Local network status error. This console could not read its network status."
             }
-            Reason::PeerEnded => "Your opponent disconnected.",
+            Reason::PeerEnded => "The other console ended the session.",
             Reason::Timeout => {
                 "Connection timed out. Nothing arrived from the other console in time."
             }

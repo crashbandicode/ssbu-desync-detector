@@ -16,7 +16,7 @@ counters. The 0.4.0 lines are unchanged.
 1 peer_end_path path=A frame=8444 station=1 peer_mask=0x3 end_reason=2 msg_type=7 msg_station=0 msg_word=7
 1 peer_end_path path=B frame=none station=0 peer_mask=0x1 caller=0x16cfa38
 3 session_end reason=1 fault_code=2 net_result=-993 phase_before=4 already_ending=1 frame=100 caller=0x16d8d3c via=countdown
-7 session_summary frame=5707 kos=1,0,0,0,0,0,0,0 fault_words=0,0,0,0,0,0,0,0,0,0 ended=sync_end_normal stall_press rescued=10 (jump=9 attack=1 special=0 shield=0 grab=0 other=0) dropped=123 committed=45 stalled=123 flick_carried=3 flick_lost=1 (reversal=1 superseded=0)
+7 session_summary frame=5707 kos=1,0,0,0,0,0,0,0 fault_words=0,0,0,0,0,0,0,0,0,0 ended=sync_end_normal last_session=normal penalty_flag=unknown stall_press rescued=10 (jump=9 attack=1 special=0 shield=0 grab=0 other=0) dropped=123 committed=45 stalled=123 flick_carried=3 flick_lost=1 (reversal=1 superseded=0)
 ```
 
 The first number is the system tick, as on every line.
@@ -52,6 +52,13 @@ The first number is the system tick, as on every line.
     `peer_end_b`, `start_failure`, `phase6_other`, or `none_seen` (the session stopped with no end, such as a lost
     connection). For the phase-6 ends it adds `end_reason`, `end_fault_code` and `end_caller`. A phase-6 end within
     1 s of a peer-end path is attributed to that path.
+  - `last_session` is the session's verdict as written to `last-session.txt`: `normal`, a 0.3.0 reason name
+    (`desync`, `local_link`, `local_status`, `peer_ended`, `timeout`, `unknown`), or `none` when no verdict was in
+    scope. The writer writes `in_progress` there when an online session starts, so a console that stops mid-match
+    leaves `in_progress`; the next boot's first line after the install line is `last_session_loaded=<token>`. A record
+    only: no dialog text depends on it, and the dialogs are exactly 0.4.0's.
+  - `penalty_flag` is the game's own disconnect-penalty state for this console. No field of the game's is pinned yet,
+    so it is `unknown` and nothing is read.
   - `stall_press …` is appended only when `ssbu_stall_press_carry_stats_v1` is found (`nn::ro::LookupSymbol`, by the
     writer thread) and answers with version 1 or later. `rescued` counts commits that received carried presses, by
     button group; `committed` the press edges the game received; `dropped` the samples the lockstep discarded.

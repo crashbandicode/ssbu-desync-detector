@@ -89,6 +89,7 @@ new session empties its slot first.
 | File | Contents |
 |---|---|
 | `events.log` | Install line; per session `session`, `desync` (frame, this console's value, the other console's value, its station), `sync_end` (what ended the session), `peer_end`, `link`, `recording` (or `not_kept reason=normal_end`), `playback_mismatch`, `fault` (the number that armed the countdown, the frame, the mask, and the ten table words); `communication_text` records preparation time and reason, not proof of a rendered frame; `notice_text` records a Canceled notice or the reconnect warning, the function that asked for it (`caller`), and whether a verdict was withheld. 0.5.0 adds `match_start`, `ko`, `peer_end_path`, `session_end` and `session_summary` ([MATCH-TELEMETRY.md](MATCH-TELEMETRY.md)). At 1 MiB it becomes `events.previous.log`. |
+| `last-session.txt` | 0.5.0: one line, `last_session=<token>`: `in_progress` while an online session runs, then its verdict (see [MATCH-TELEMETRY.md](MATCH-TELEMETRY.md)). A record only. |
 | `frames-N.bin` | 20-byte records. Online: frame number and this console's check value. Playback: playback frame, the computed check value, computed and recorded position checksums. |
 | `match-N.bin` | Only for a match that did not end normally: the game's recording as a replay file, saved one second after the session ends and replaced by the finalised entry if the game finalises it. |
 

@@ -463,9 +463,6 @@ pub const EV_FAULT: u8 = 11;
 pub const NOTICE_KINDS: [&str; 3] = ["canceled", "canceled_period", "reconnect_warning"];
 /// `EV_NOTICE_TEXT` bits 16..24 when the session had no verdict.
 pub const NOTICE_VERDICT_WITHHELD: u64 = 0xff;
-/// `EV_NOTICE_TEXT` bits 16..24 when the reconnect warning was replaced (0.5.0: the last session's stored verdict is
-/// that the other console ended it).
-pub const NOTICE_VERDICT_REPLACED: u64 = 0xfe;
 pub const COMMUNICATION_REASONS: [&str; 6] = [
     "desync",
     "local_link",
@@ -643,8 +640,6 @@ pub fn describe(event: &RawEvent, out: &mut impl fmt::Write) -> fmt::Result {
                 b,
                 if verdict == NOTICE_VERDICT_WITHHELD {
                     "withheld"
-                } else if verdict == NOTICE_VERDICT_REPLACED {
-                    "replaced_opponent_disconnected"
                 } else {
                     COMMUNICATION_REASONS
                         .get(verdict as usize)
