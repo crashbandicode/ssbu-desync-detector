@@ -10,6 +10,12 @@
 use crate::dialog;
 use crate::disconnect::Reason;
 use crate::evidence::Evidence;
+use crate::matchlog::{
+    self, describe_ko, describe_match_start, describe_peer_path, describe_session_end, describe_summary,
+    pack_ko, pack_peer_path, pack_session_end, phase6_path, unpack_ko, unpack_peer_path, unpack_session_end,
+    EndPath, Ko, MatchStart, PeerPath, SessionEnd, StallStatsV1, Summary, EV_KO, EV_MATCH_START, EV_PEER_PATH,
+    EV_SESSION_END, EV_SUMMARY, PATH_A, PATH_B, SIDE_WORDS,
+};
 use crate::model::{
     self, describe, describe_fault, fault_code_is_logged, minimal_outer, pack_desync, pack_fault,
     pack_recording, pack_sync_end, recorder, unpack_fault, xor_words, EndState, FaultView,
@@ -133,6 +139,34 @@ static FAULT_LOG: [FaultLogSlot; FAULT_LOG_RING] = [const {
         words: [const { AtomicU32::new(0) }; FAULT_WORD_COUNT],
     }
 }; FAULT_LOG_RING];
+
+/// 0.5.0: records too wide for an event (`match_start`, `session_summary`); the event's `a` is the sequence.
+const SIDE_RING: usize = 8;
+struct SideSlot {
+    seq: AtomicU64,
+    words: [AtomicU64; SIDE_WORDS],
+}
+static SIDE: [SideSlot; SIDE_RING] = [const {
+    SideSlot {
+        seq: AtomicU64::new(0),
+        words: [const { AtomicU64::new(0) }; SIDE_WORDS],
+    }
+}; SIDE_RING];
+static SIDE_HEAD: AtomicU64 = AtomicU64::new(0);
+/// A KO's state before `.1363420`'s update, taken by its epilogue (game thread; bit 63 = set).
+static KO_PENDING_A: AtomicU64 = AtomicU64::new(0);
+static KO_PENDING_B: AtomicU64 = AtomicU64::new(0);
+/// KOs per entry since the match start, for the summary.
+static KO_COUNTS: [AtomicU32; 8] = [const { AtomicU32::new(0) }; 8];
+/// The first end seen this match (`EndPath` code, 0 = none), its reason, fault code and caller.
+static END_PATH: AtomicU32 = AtomicU32::new(0);
+static END_REASON: AtomicU32 = AtomicU32::new(0);
+static END_FAULT: AtomicU32 = AtomicU32::new(0);
+static END_CALLER: AtomicU64 = AtomicU64::new(0);
+static PEER_PATH_LAST: AtomicU32 = AtomicU32::new(0);
+static PEER_PATH_TICK: AtomicU64 = AtomicU64::new(0);
+/// `ssbu_stall_press_carry_stats_v1`, 0 until found (looked up by the writer thread only).
+static STALL_EXPORT: AtomicUsize = AtomicUsize::new(0);
 
 /// The writer thread's object and stack, static so no heap is involved.
 #[repr(C, align(4096))]
@@ -550,6 +584,13 @@ unsafe fn desync_detector_sync_end(ctx: &InlineCtx) {
     let caller = ctx.registers[30]
         .x()
         .wrapping_sub(TEXT_BASE.load(Ordering::Relaxed));
+    let normal = ctx.registers[1].w() == model::END_KIND_NORMAL && read_u8(session + 0x5f) & 1 == 0;
+    note_end(
+        if normal { EndPath::SyncEndNormal } else { EndPath::SyncEndAbnormal },
+        0,
+        0,
+        caller,
+    );
     push_session_event(session, EV_SYNC_END, a, caller);
 }
 
@@ -570,6 +611,277 @@ unsafe fn desync_detector_peer_end(ctx: &InlineCtx) {
         sender | reason << 8,
         u64::from(read_u16(session + 0x2)),
     );
+}
+
+// --- 0.5.0 match telemetry (matchlog.rs): read-only hooks; each writes only this plugin's statics. ---
+
+fn publish_side(code: u8, words: &[u64; SIDE_WORDS]) {
+    let seq = SIDE_HEAD.fetch_add(1, Ordering::AcqRel) + 1;
+    let slot = &SIDE[((seq - 1) % SIDE_RING as u64) as usize];
+    slot.seq.store(0, Ordering::Release);
+    for (cell, word) in slot.words.iter().zip(words) {
+        cell.store(*word, Ordering::Relaxed);
+    }
+    slot.seq.store(seq, Ordering::Release);
+    push_event(code, seq, 0);
+}
+
+fn read_side(seq: u64) -> Option<[u64; SIDE_WORDS]> {
+    let slot = &SIDE[(seq.wrapping_sub(1) % SIDE_RING as u64) as usize];
+    if seq == 0 || slot.seq.load(Ordering::Acquire) != seq {
+        return None;
+    }
+    let mut words = [0u64; SIDE_WORDS];
+    for (word, cell) in words.iter_mut().zip(slot.words.iter()) {
+        *word = cell.load(Ordering::Relaxed);
+    }
+    (slot.seq.load(Ordering::Acquire) == seq).then_some(words)
+}
+
+/// The first end of the match wins; `match_limits` clears it.
+fn note_end(path: EndPath, reason: u8, fault_code: u8, caller: u64) {
+    if END_PATH
+        .compare_exchange(0, path as u32, Ordering::AcqRel, Ordering::Relaxed)
+        .is_ok()
+    {
+        END_REASON.store(u32::from(reason), Ordering::Relaxed);
+        END_FAULT.store(u32::from(fault_code), Ordering::Relaxed);
+        END_CALLER.store(caller, Ordering::Relaxed);
+    }
+}
+
+/// The fault object `[[main+0x52c3940]]`, if one exists.
+unsafe fn fault_object() -> Option<u64> {
+    let cell = read_u64(TEXT_BASE.load(Ordering::Relaxed) + FAULT_OBJECT as u64);
+    if cell < 0x10000 {
+        return None;
+    }
+    let object = read_u64(cell);
+    (object >= 0x10000 && object.is_multiple_of(4)).then_some(object)
+}
+
+/// The stamp list's length (`[+0x200, +0x208)`, 8 bytes each), 0x3ff if implausible.
+unsafe fn stamps(object: u64) -> u16 {
+    let begin = read_u64(object + matchlog::FAULT_STAMPS_BEGIN_AT);
+    let end = read_u64(object + matchlog::FAULT_STAMPS_END_AT);
+    if end >= begin && (end - begin) / 8 < 0x3ff {
+        ((end - begin) / 8) as u16
+    } else {
+        0x3ff
+    }
+}
+
+/// The lockstep session's current frame, if a session exists.
+unsafe fn session_frame() -> Option<u16> {
+    let holder = read_u64(TEXT_BASE.load(Ordering::Relaxed) + matchlog::LOCKSTEP_HOLDER as u64);
+    if holder < 0x10000 {
+        return None;
+    }
+    let session = read_u64(holder + 8);
+    (session >= 0x10000).then(|| read_u16(session + matchlog::SESSION_FRAME_AT))
+}
+
+/// Match setup, while the fault table's limits are copied (x19 = the object, x8 = the chosen block). Starts the
+/// match's counts; logs `match_start` only when the table is armed (an online melee mode).
+#[skyline::hook(offset = matchlog::MATCH_LIMITS_OFFSET, inline)]
+unsafe fn desync_detector_match_limits(ctx: &InlineCtx) {
+    for count in &KO_COUNTS {
+        count.store(0, Ordering::Relaxed);
+    }
+    KO_PENDING_A.store(0, Ordering::Relaxed);
+    END_PATH.store(0, Ordering::Release);
+    PEER_PATH_LAST.store(0, Ordering::Relaxed);
+    let (object, block) = (ctx.registers[19].x(), ctx.registers[8].x());
+    if object < 0x10000 || block < 0x10000 {
+        return;
+    }
+    let mask = (read_u64(object) & 0x3ff) as u16;
+    if mask == 0 {
+        return;
+    }
+    let text = TEXT_BASE.load(Ordering::Relaxed);
+    let mut rules = [0u8; matchlog::RULE_BYTES];
+    for (i, byte) in rules.iter_mut().enumerate() {
+        *byte = read_u8(text + matchlog::SETUP_BLOCK as u64 + i as u64);
+    }
+    let offset = block.wrapping_sub(read_u64(object + matchlog::FAULT_PARAM_AT));
+    let start = MatchStart {
+        melee: rules[0],
+        mode: read_u32(text + matchlog::MODE_WORD as u64),
+        mask,
+        watched: read_u32(object + matchlog::FAULT_WATCHED_AT) as u8,
+        watched_count: read_u32(object + matchlog::FAULT_WATCHED_COUNT_AT) as u8,
+        block: if offset < 0x100 { offset as u8 } else { 0 },
+        seconds: f32::from_bits(read_u32(block)) as u32,
+        n: read_u8(block + 4),
+        l: read_u8(block + 5),
+        rules,
+    };
+    publish_side(EV_MATCH_START, &start.words());
+}
+
+/// `.1363420`'s entry: w1 = the KO'd entry, w2 = the kind. Stages the before-state while the table is armed.
+#[skyline::hook(offset = matchlog::KO_ENTRY_OFFSET, inline)]
+unsafe fn desync_detector_ko_entry(ctx: &InlineCtx) {
+    KO_PENDING_A.store(0, Ordering::Relaxed);
+    let Some(object) = fault_object() else {
+        return;
+    };
+    if read_u64(object) & 0x3ff == 0 {
+        return;
+    }
+    let ko = Ko {
+        entry: ctx.registers[1].w() as u8,
+        kind: ctx.registers[2].w() as u8,
+        frame: session_frame(),
+        stamps_before: stamps(object),
+        stamps_after: 0,
+        word2_before: read_u32(object + matchlog::FAULT_WORD2_AT),
+        word2_after: 0,
+    };
+    let (a, b) = pack_ko(&ko);
+    KO_PENDING_B.store(b, Ordering::Relaxed);
+    KO_PENDING_A.store(a | 1 << 63, Ordering::Relaxed);
+}
+
+/// `.1363420`'s epilogue (every return): the after-state of a staged KO.
+#[skyline::hook(offset = matchlog::KO_EXIT_OFFSET, inline)]
+unsafe fn desync_detector_ko_exit(_ctx: &InlineCtx) {
+    let a = KO_PENDING_A.swap(0, Ordering::Relaxed);
+    if a & 1 << 63 == 0 {
+        return;
+    }
+    let mut ko = unpack_ko(a & !(1 << 63), KO_PENDING_B.load(Ordering::Relaxed));
+    if let Some(object) = fault_object() {
+        ko.stamps_after = stamps(object);
+        ko.word2_after = read_u32(object + matchlog::FAULT_WORD2_AT);
+    }
+    if let Some(count) = KO_COUNTS.get(usize::from(ko.entry)) {
+        count.fetch_add(1, Ordering::Relaxed);
+    }
+    let (a, b) = pack_ko(&ko);
+    push_event(EV_KO, a, b);
+}
+
+fn note_peer_path(path: u8) {
+    PEER_PATH_LAST.store(u32::from(path), Ordering::Relaxed);
+    PEER_PATH_TICK.store(tick(), Ordering::Release);
+}
+
+/// Peer-end path A, the receive handler's tail into `.16cced0` (x19 = session, x20 = the message: `.16cc140` keeps
+/// x2 there, as at `PEER_ABORT`; w1 = the reason).
+#[skyline::hook(offset = matchlog::PEER_PATH_A_OFFSET, inline)]
+unsafe fn desync_detector_peer_path_a(ctx: &InlineCtx) {
+    let (session, message) = (ctx.registers[19].x(), ctx.registers[20].x());
+    if session < 0x10000 {
+        return;
+    }
+    note_peer_path(PATH_A);
+    let path = PeerPath {
+        path: PATH_A,
+        station: read_u8(session + matchlog::SESSION_STATION_AT),
+        frame: Some(read_u16(session + matchlog::SESSION_FRAME_AT)),
+        peer_mask: read_u16(session + matchlog::SESSION_PEER_MASK_AT),
+        end_reason: ctx.registers[1].w() as u8,
+        message: (message >= 0x10000)
+            .then(|| (read_u8(message), u16::from_be_bytes([read_u8(message + 1), read_u8(message + 2)]))),
+        caller: 0,
+    };
+    let (a, b) = pack_peer_path(&path);
+    push_event(EV_PEER_PATH, a, b);
+}
+
+/// Peer-end path B, the abort function (x0 = session, x30 = its caller).
+#[skyline::hook(offset = matchlog::PEER_PATH_B_OFFSET, inline)]
+unsafe fn desync_detector_peer_path_b(ctx: &InlineCtx) {
+    let session = ctx.registers[0].x();
+    if session < 0x10000 {
+        return;
+    }
+    note_peer_path(PATH_B);
+    let path = PeerPath {
+        path: PATH_B,
+        station: read_u8(session + matchlog::SESSION_STATION_AT),
+        frame: Some(read_u16(session + matchlog::SESSION_FRAME_AT)),
+        peer_mask: read_u16(session + matchlog::SESSION_PEER_MASK_AT),
+        end_reason: 0,
+        message: None,
+        caller: ctx.registers[30].x().wrapping_sub(TEXT_BASE.load(Ordering::Relaxed)),
+    };
+    let (a, b) = pack_peer_path(&path);
+    push_event(EV_PEER_PATH, a, b);
+}
+
+/// `.16cced0`'s entry: phase 6 (x0 = session, w1 = reason, x30 = caller).
+#[skyline::hook(offset = matchlog::SESSION_END_OFFSET, inline)]
+unsafe fn desync_detector_session_end(ctx: &InlineCtx) {
+    let session = ctx.registers[0].x();
+    if session < 0x10000 {
+        return;
+    }
+    let caller = ctx.registers[30].x().wrapping_sub(TEXT_BASE.load(Ordering::Relaxed));
+    let end = SessionEnd {
+        reason: ctx.registers[1].w() as u8,
+        fault_code: read_u8(session + matchlog::SESSION_FAULT_CODE_AT),
+        phase_before: read_u8(session + matchlog::SESSION_PHASE_AT),
+        already_ending: read_u8(session + matchlog::SESSION_ENDING_AT),
+        frame: Some(read_u16(session + matchlog::SESSION_FRAME_AT)),
+        caller,
+    };
+    let recent = if tick().saturating_sub(PEER_PATH_TICK.load(Ordering::Acquire)) <= matchlog::PEER_PATH_WINDOW_TICKS {
+        PEER_PATH_LAST.load(Ordering::Relaxed) as u8
+    } else {
+        0
+    };
+    note_end(phase6_path(caller, recent), end.reason, end.fault_code, caller);
+    let (a, b) = pack_session_end(&end);
+    push_event(EV_SESSION_END, a, b);
+}
+
+/// `.16d5cd0`'s entry: the session stops. One summary line per session.
+#[skyline::hook(offset = matchlog::SESSION_STOP_OFFSET, inline)]
+unsafe fn desync_detector_session_stop(ctx: &InlineCtx) {
+    let session = ctx.registers[0].x();
+    if session < 0x10000 {
+        return;
+    }
+    let (_, words) = read_fault_table();
+    let mut kos = [0u8; 8];
+    for (ko, count) in kos.iter_mut().zip(KO_COUNTS.iter()) {
+        *ko = count.load(Ordering::Relaxed).min(255) as u8;
+    }
+    let summary = Summary {
+        frame: Some(read_u16(session + matchlog::SESSION_FRAME_AT)),
+        kos,
+        fault_words: words,
+        ended: EndPath::from_code(END_PATH.load(Ordering::Acquire) as u8),
+        end_reason: END_REASON.load(Ordering::Relaxed) as u8,
+        end_fault_code: END_FAULT.load(Ordering::Relaxed) as u8,
+        end_caller: END_CALLER.load(Ordering::Relaxed),
+    };
+    publish_side(EV_SUMMARY, &summary.words());
+    PEER_PATH_LAST.store(0, Ordering::Relaxed);
+}
+
+/// `ssbu-stall-press-carry`'s counters, through its export (writer thread only).
+fn stall_stats_now() -> Option<StallStatsV1> {
+    let mut address = STALL_EXPORT.load(Ordering::Acquire);
+    if address == 0 {
+        let mut found = 0usize;
+        unsafe { nn::ro::LookupSymbol(&mut found, matchlog::STALL_SYMBOL.as_ptr()) };
+        address = found;
+        STALL_EXPORT.store(address, Ordering::Release);
+    }
+    if address == 0 {
+        return None;
+    }
+    // SAFETY: a found address is that export, whose ABI matchlog::STALL_SYMBOL declares; `stats` is writable.
+    let answer = unsafe {
+        let f: unsafe extern "C" fn(*mut StallStatsV1) -> bool = core::mem::transmute(address);
+        let mut stats = StallStatsV1::default();
+        f(&mut stats).then_some(stats)
+    };
+    matchlog::stall_stats(answer)
 }
 
 #[skyline::hook(offset = model::PLAYBACK_CHECK_OFFSET, inline)]
@@ -1037,7 +1349,7 @@ impl Writer {
             TELEMETRY_REQUEST.store(true, Ordering::Release);
             self.event_tail = head - EVENT_RING as u64;
         }
-        let mut line = Line::<192>::new();
+        let mut line = Line::<512>::new();
         let mut batch = [0u8; 2048];
         let mut used = 0;
         while self.event_tail < head {
@@ -1083,6 +1395,25 @@ impl Writer {
                     }
                 }
                 let _ = describe_fault(event.tick, &view, &mut line);
+            } else if event.code == EV_MATCH_START || event.code == EV_SUMMARY {
+                match read_side(event.a) {
+                    Some(words) if event.code == EV_MATCH_START => {
+                        let _ = describe_match_start(event.tick, &MatchStart::from_words(&words), &mut line);
+                    }
+                    Some(words) => {
+                        let stall = stall_stats_now();
+                        let _ = describe_summary(event.tick, &Summary::from_words(&words), stall.as_ref(), &mut line);
+                    }
+                    None => {
+                        let _ = write!(line, "{} side_record_lost code={}", event.tick, event.code);
+                    }
+                }
+            } else if event.code == EV_KO {
+                let _ = describe_ko(event.tick, &unpack_ko(event.a, event.b), &mut line);
+            } else if event.code == EV_PEER_PATH {
+                let _ = describe_peer_path(event.tick, &unpack_peer_path(event.a, event.b), &mut line);
+            } else if event.code == EV_SESSION_END {
+                let _ = describe_session_end(event.tick, &unpack_session_end(event.a, event.b), &mut line);
             } else {
                 let _ = describe(&event, &mut line);
             }
@@ -1537,6 +1868,27 @@ pub fn main() {
     for (_, route) in installed.iter().zip(dialog::ROUTES).filter(|(r, _)| **r) {
         let _ = write!(report, "{separator}{}", route.name);
         separator = ",";
+    }
+    // 0.5.0 match telemetry: all seven sites or none.
+    let failed = matchlog::TELEMETRY_SITES
+        .iter()
+        .find(|site| !unsafe { guard_matches(site) });
+    match failed {
+        None => {
+            skyline::install_hooks!(
+                desync_detector_match_limits,
+                desync_detector_ko_entry,
+                desync_detector_ko_exit,
+                desync_detector_peer_path_a,
+                desync_detector_peer_path_b,
+                desync_detector_session_end,
+                desync_detector_session_stop
+            );
+            let _ = write!(report, " match_telemetry=installed");
+        }
+        Some(site) => {
+            let _ = write!(report, " match_telemetry=skipped guard_failed={}", site.name);
+        }
     }
     #[cfg(feature = "diag")]
     {

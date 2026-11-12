@@ -7,6 +7,7 @@
 pub mod dialog;
 pub mod disconnect;
 pub mod evidence;
+pub mod matchlog;
 pub mod model;
 #[cfg(target_os = "switch")]
 mod runtime;

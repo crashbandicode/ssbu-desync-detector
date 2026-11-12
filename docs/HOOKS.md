@@ -17,6 +17,12 @@ nothing is installed on another game version.
 | `0x16d5ee8` | the fault-table number that arms the match countdown, the ten words behind it, and the mask |
 | `0x37ad8e8` | append a reason at the formatter's return, only for the guarded communication-text caller |
 | `0x377a250` | append a reason to label text set without arguments, before the pane setter |
+| `0x14d96a0` | 0.5.0: match setup copying the fault table's limits; the setup block's first 64 bytes |
+| `0x1363420`, `0x1363998` | 0.5.0: a KO the fault table counts, the table before and after |
+| `0x16cc4c0`, `0x16ccae8` | 0.5.0: the lockstep's two peer-end paths into phase 6 |
+| `0x16cced0`, `0x16d5cd0` | 0.5.0: phase 6 (reason, fault code, caller) and the session stop (summary) |
+
+The 0.5.0 sites are described in [MATCH-TELEMETRY.md](MATCH-TELEMETRY.md).
 
 The game sets a label's text two ways, and each has one route in
 `src/dialog.rs` (`Route`): with arguments through `.37a2660` and the
@@ -82,7 +88,7 @@ new session empties its slot first.
 
 | File | Contents |
 |---|---|
-| `events.log` | Install line; per session `session`, `desync` (frame, this console's value, the other console's value, its station), `sync_end` (what ended the session), `peer_end`, `link`, `recording` (or `not_kept reason=normal_end`), `playback_mismatch`, `fault` (the number that armed the countdown, the frame, the mask, and the ten table words); `communication_text` records preparation time and reason, not proof of a rendered frame; `notice_text` records a Canceled notice or the reconnect warning, the function that asked for it (`caller`), and whether a verdict was withheld. At 1 MiB it becomes `events.previous.log`. |
+| `events.log` | Install line; per session `session`, `desync` (frame, this console's value, the other console's value, its station), `sync_end` (what ended the session), `peer_end`, `link`, `recording` (or `not_kept reason=normal_end`), `playback_mismatch`, `fault` (the number that armed the countdown, the frame, the mask, and the ten table words); `communication_text` records preparation time and reason, not proof of a rendered frame; `notice_text` records a Canceled notice or the reconnect warning, the function that asked for it (`caller`), and whether a verdict was withheld. 0.5.0 adds `match_start`, `ko`, `peer_end_path`, `session_end` and `session_summary` ([MATCH-TELEMETRY.md](MATCH-TELEMETRY.md)). At 1 MiB it becomes `events.previous.log`. |
 | `frames-N.bin` | 20-byte records. Online: frame number and this console's check value. Playback: playback frame, the computed check value, computed and recorded position checksums. |
 | `match-N.bin` | Only for a match that did not end normally: the game's recording as a replay file, saved one second after the session ends and replaced by the finalised entry if the game finalises it. |
 

@@ -1,4 +1,18 @@
-# Why frame 8444 was the last one — 2026-11-07 (current)
+# 0.5.0 match telemetry — 2026-11-12 (current)
+
+- **Work clone:** `/home/intpa/ssbu-desync-detector-050` on the Surface (`ubuntu-surface`), from the Yoga clone's
+  `readme-gifs` at `ca0c149` (0.4.0). The Yoga clone's own uncommitted `HANDOFF.md` and `BRIEF-GIFS.md` were left
+  alone.
+- **Branch:** `match-telemetry-050`, to be pushed with no tag.
+- **Change:** `src/matchlog.rs` (sites, events 12–16, packing, line text, host tests) and the hooks and writer in
+  `src/runtime.rs`. The lines and sites are in `docs/MATCH-TELEMETRY.md`.
+- **Design and trace:** `smash-training-lobby/artifacts/phase23/double-input/DESIGN-desync-detector-0.5.0.md`.
+- **Builds:** release `27faf8c0…` (69632 bytes), diag `edcef73a…`. No Eden run and no match yet.
+- **Next:**
+  - the Eden proof pair with `ssbu-stall-press-carry` 0.1.0 and 0.2.0;
+  - staging the card install over 0.4.0 `a31ad657…` (the primary installs it).
+
+# Why frame 8444 was the last one — 2026-11-07
 
 The frame the plugin records is the halfword stored by `stp w11, w8, [x9]`
 at `.16d6cdc`, inside `.16d5e50`. The next call did not reach that store.
