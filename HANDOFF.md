@@ -14,9 +14,14 @@
   and must not be run or shipped. Why: the peer's end message carries kind 2 for every abnormal end, including the
   peer timing this console out, and a peer that quits sends nothing.
 - **Kept:** `last-session.txt` (a record only) and `last_session=… penalty_flag=unknown` in the summary.
-- **Next:**
-  - the Eden proof pair with `ssbu-stall-press-carry` 0.1.0 and 0.2.0;
-  - staging the card install over 0.4.0 `a31ad657…` (the primary installs it).
+- **Eden:** integration's Yoga pair `proof-dc8ee988-r2`, `-r4`, `-r5` (`smash-training-lobby/artifacts/phase23/
+  double-input/runs/`): the install line, `match_start`, `fault`, `session_end`, `peer_end_path` and `session_summary`
+  with the fix's counters seen live; `desync_seen=0`.
+- **Card (the primary, 2026-11-12 ~20:30Z):** `dc8ee988…` installed over `a31ad657…`, `installed_verified`; rollback
+  `ultimate/ssbu-desync-detector/backups/pre-dc8ee9889d2f017d.nro`; receipts
+  `smash-training-lobby/artifacts/card-install-detector-0.5.0/`.
+- **Pushed:** branch `match-telemetry-050` to Forgejo, no tag (tags and releases wait until the operator has played).
+- **Not run (waits for the operator's OK):** a mid-match quit, the next-session warning, the penalty field.
 
 # Why frame 8444 was the last one — 2026-11-07
 
