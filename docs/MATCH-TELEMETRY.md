@@ -46,6 +46,11 @@ The first number is the system tick, as on every line.
   - `stock` is the stocks left (`+0xd8`).
   - `self_destruct=yes` when the self-destruct total rose with the dead total.
   - The first poll of a match, and any count going down (a new battle), only set the baseline.
+  - **When it reads:** only from match setup (`match_limits`) to the match's first end (`sync_end` or phase 6) or the
+    session stop, and never while the manager is on the results (`is_result_mode`, `[[manager]+0xe9]`).
+  - **What it reads:** only entries below the game's live count (`entry_count`, `[[manager]+0xa0]`, at most 8), one
+    straight chain per entry; a null or implausible pointer (below `0x10000` or not 8-aligned) ends that chain, as
+    the game's own `total_fighter_num` skips null slots.
 - **`ko`**: one per call of the KO method the fault table counts (`.1363420`), while the table is armed. The game
   does not call it for every lost stock: in Eden a run-off and a CPU's lost stock left no `ko` line
   (`proof-dc8ee988-r4`, `-r6`, `-r7`), while a KO in a fight did (`-r5`). It is the fault table's own evidence;

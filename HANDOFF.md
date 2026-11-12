@@ -8,7 +8,10 @@
   - `kos=` counts them; `self_destructs=` is new.
   - The 0.5.0 `ko` line is unchanged (the fault table's KO method, credited KOs only).
   - Dialogs and `model.rs` are byte-identical to `ac75be2`.
-- **Builds:** release `5e21192a…`, diag `474b7c1b…`; 165 host tests.
+- **Builds:** `ec57030` release `5e21192a…` (superseded: walked 8 entries every frame). After the primary's review
+  (22:06Z): the poll reads only entries below the game's live count (`[[manager]+0xa0]`), never on the results
+  (`[[manager]+0xe9]`), and only from match setup to the match's first end. Release `36027bb7…`, diag `a8952c61…`;
+  168 host tests.
 - **Next:** integration's r8 on it; the card install (the primary); push after the card has it, no tag.
 
 # 0.5.0 match telemetry — 2026-11-12

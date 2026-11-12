@@ -167,6 +167,10 @@ pub const FIGHTER_MANAGER: usize = 0x52b94f8;
 pub const ENTRY_AT: u64 = 0x20;
 pub const INFO_DATA_AT: u64 = 0xf8;
 pub const ENTRIES: usize = 8;
+/// `FighterManager__entry_count_impl` (`.2140d60`): `u32 [[manager] + 0xa0]`, the live entry count.
+pub const ENTRY_COUNT_AT: u64 = 0xa0;
+/// `FighterManager__is_result_mode_impl` (`.2141620`): `u8 [[manager] + 0xe9]`, nonzero on the results.
+pub const RESULT_MODE_AT: u64 = 0xe9;
 /// Three `u32` dead counts (`dead_count(info, -2)` sums them); what each slot means is not known.
 pub const DEAD_AT: u64 = 0xcc;
 /// Two arrays of three `u32` self-destruct counts (`suicide_count(info, -2)` sums all six).
@@ -231,6 +235,54 @@ pub fn stock_step(base: Option<Baseline>, now: &Counters) -> (Baseline, Option<L
         }
         _ => (next, None),
     }
+}
+
+/// Game memory as the poll reads it (the runtime reads the address; the host tests use a fake).
+pub trait Memory {
+    fn u64_at(&self, at: u64) -> u64;
+    fn u32_at(&self, at: u64) -> u32;
+    fn u8_at(&self, at: u64) -> u8;
+}
+
+/// A pointer read from game memory that is plausible as an object address.
+pub fn plausible(pointer: u64) -> Option<u64> {
+    (pointer >= 0x10000 && pointer.is_multiple_of(8)).then_some(pointer)
+}
+
+/// The live entries' counters, read as the game's own accessors read them, one straight chain per entry:
+/// `[main+FIGHTER_MANAGER]` → `[manager]` → (not on the results: `RESULT_MODE_AT`) → entry `e` below the live
+/// count (`ENTRY_COUNT_AT`, at most 8) → its information data → the counters. A null or implausible pointer ends that
+/// chain (the game's own `total_fighter_num` skips null slots the same way). Returns how many entries were looked at.
+pub fn read_entries(mem: &impl Memory, text: u64, out: &mut [Option<Counters>; ENTRIES]) -> usize {
+    *out = [None; ENTRIES];
+    let Some(manager) = plausible(mem.u64_at(text + FIGHTER_MANAGER as u64)) else {
+        return 0;
+    };
+    let Some(entries) = plausible(mem.u64_at(manager)) else {
+        return 0;
+    };
+    if mem.u8_at(entries + RESULT_MODE_AT) != 0 {
+        return 0;
+    }
+    let count = (mem.u32_at(entries + ENTRY_COUNT_AT) as usize).min(ENTRIES);
+    for (e, slot) in out.iter_mut().enumerate().take(count) {
+        let Some(fighter) = plausible(mem.u64_at(entries + ENTRY_AT + 8 * e as u64)) else {
+            continue;
+        };
+        let Some(data) = plausible(mem.u64_at(fighter + INFO_DATA_AT)) else {
+            continue;
+        };
+        let suicides = (0..3u64).fold(0u32, |sum, i| {
+            sum.saturating_add(mem.u32_at(data + SUICIDE_A_AT + 4 * i))
+                .saturating_add(mem.u32_at(data + SUICIDE_B_AT + 4 * i))
+        });
+        *slot = Some(Counters {
+            dead: [mem.u32_at(data + DEAD_AT), mem.u32_at(data + DEAD_AT + 4), mem.u32_at(data + DEAD_AT + 8)],
+            suicides,
+            stock: mem.u32_at(data + STOCK_AT),
+        });
+    }
+    count
 }
 
 /// One `stock_lost` line.
@@ -1024,6 +1076,101 @@ mod tests {
         assert!(text(|o| describe_stock_lost(9, &unpack_stock_lost(a, b), o))
             .starts_with("9 stock_lost frame=none entry=1 self_destruct=no "));
         assert_eq!(EV_STOCK_LOST, 17);
+    }
+
+    /// Game memory for `read_entries`: unset addresses read 0; every read is recorded.
+    struct Fake {
+        cells: std::collections::HashMap<u64, u64>,
+        reads: std::cell::RefCell<Vec<u64>>,
+    }
+
+    impl Fake {
+        const TEXT: u64 = 0x80_0000_0000;
+        const MANAGER: u64 = 0x10_0000;
+        const IMPL: u64 = 0x20_0000;
+
+        fn new(count: u32) -> Self {
+            let mut cells = std::collections::HashMap::new();
+            cells.insert(Self::TEXT + FIGHTER_MANAGER as u64, Self::MANAGER);
+            cells.insert(Self::MANAGER, Self::IMPL);
+            cells.insert(Self::IMPL + ENTRY_COUNT_AT, u64::from(count));
+            let mut f = Self { cells, reads: std::cell::RefCell::new(Vec::new()) };
+            // Eight slots filled, so a read past the count would find something.
+            for e in 0..ENTRIES as u64 {
+                let fighter = 0x30_0000 + e * 0x1000;
+                let data = 0x40_0000 + e * 0x1000;
+                f.cells.insert(Self::IMPL + ENTRY_AT + 8 * e, fighter);
+                f.cells.insert(fighter + INFO_DATA_AT, data);
+                f.cells.insert(data + DEAD_AT, e);
+                f.cells.insert(data + STOCK_AT, 3);
+            }
+            f
+        }
+
+        fn read(&self, at: u64) -> u64 {
+            self.reads.borrow_mut().push(at);
+            self.cells.get(&at).copied().unwrap_or(0)
+        }
+
+        fn slot(e: u64) -> u64 {
+            Self::IMPL + ENTRY_AT + 8 * e
+        }
+    }
+
+    impl Memory for Fake {
+        fn u64_at(&self, at: u64) -> u64 {
+            self.read(at)
+        }
+        fn u32_at(&self, at: u64) -> u32 {
+            self.read(at) as u32
+        }
+        fn u8_at(&self, at: u64) -> u8 {
+            self.read(at) as u8
+        }
+    }
+
+    #[test]
+    fn entries_beyond_the_live_count_are_never_read() {
+        let mem = Fake::new(2);
+        let mut out = [None; ENTRIES];
+        assert_eq!(read_entries(&mem, Fake::TEXT, &mut out), 2);
+        assert_eq!(out[1], Some(Counters { dead: [1, 0, 0], suicides: 0, stock: 3 }));
+        assert!(out[2..].iter().all(Option::is_none));
+        let reads = mem.reads.borrow();
+        for e in 2..ENTRIES as u64 {
+            assert!(!reads.contains(&Fake::slot(e)), "slot {e} was read");
+            assert!(!reads.contains(&(0x30_0000 + e * 0x1000 + INFO_DATA_AT)), "entry {e} was followed");
+        }
+        // A count above 8 is capped at the eight slots the game has.
+        let mem = Fake::new(200);
+        assert_eq!(read_entries(&mem, Fake::TEXT, &mut out), ENTRIES);
+        assert!(!mem.reads.borrow().contains(&Fake::slot(8)));
+    }
+
+    #[test]
+    fn a_null_slot_or_data_pointer_is_not_followed() {
+        let mut mem = Fake::new(2);
+        mem.cells.insert(Fake::slot(0), 0);
+        mem.cells.insert(0x30_1000 + INFO_DATA_AT, 0x40_1003); // entry 1's data pointer misaligned
+        let mut out = [None; ENTRIES];
+        assert_eq!(read_entries(&mem, Fake::TEXT, &mut out), 2);
+        assert_eq!(out, [None; ENTRIES]);
+        let reads = mem.reads.borrow();
+        assert!(!reads.contains(&INFO_DATA_AT), "a null slot was followed");
+        assert!(!reads.iter().any(|at| (0x40_1003..0x40_1200).contains(at)), "a misaligned pointer was followed");
+    }
+
+    #[test]
+    fn the_results_screen_and_a_missing_manager_read_no_entry() {
+        let mut mem = Fake::new(2);
+        mem.cells.insert(Fake::IMPL + RESULT_MODE_AT, 1);
+        let mut out = [None; ENTRIES];
+        assert_eq!(read_entries(&mem, Fake::TEXT, &mut out), 0);
+        assert!(!mem.reads.borrow().contains(&Fake::slot(0)));
+        let mut mem = Fake::new(2);
+        mem.cells.insert(Fake::TEXT + FIGHTER_MANAGER as u64, 0);
+        assert_eq!(read_entries(&mem, Fake::TEXT, &mut out), 0);
+        assert_eq!(*mem.reads.borrow(), vec![Fake::TEXT + FIGHTER_MANAGER as u64]);
     }
 
     #[test]

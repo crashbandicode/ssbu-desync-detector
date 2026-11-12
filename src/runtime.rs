@@ -164,6 +164,9 @@ static KO_COUNTS: [AtomicU32; 8] = [const { AtomicU32::new(0) }; 8];
 static SD_COUNTS: [AtomicU32; 8] = [const { AtomicU32::new(0) }; 8];
 /// Each entry's dead and self-destruct totals at the last poll (`Baseline::pack`; 0 = none). Game thread only.
 static STOCK_BASE: [AtomicU64; ENTRIES] = [const { AtomicU64::new(0) }; ENTRIES];
+/// The stock poll runs only from match setup (`match_limits`) to the match's first end (`note_end`) or the session
+/// stop, never on the results screen.
+static POLL_LIVE: AtomicBool = AtomicBool::new(false);
 /// The first end seen this match (`EndPath` code, 0 = none), its reason, fault code and caller.
 static END_PATH: AtomicU32 = AtomicU32::new(0);
 static END_REASON: AtomicU32 = AtomicU32::new(0);
@@ -645,8 +648,9 @@ fn read_side(seq: u64) -> Option<[u64; SIDE_WORDS]> {
     (slot.seq.load(Ordering::Acquire) == seq).then_some(words)
 }
 
-/// The first end of the match wins; `match_limits` clears it.
+/// The first end of the match wins; `match_limits` clears it. Any end also stops the stock poll.
 fn note_end(path: EndPath, reason: u8, fault_code: u8, caller: u64) {
+    POLL_LIVE.store(false, Ordering::Release);
     if END_PATH
         .compare_exchange(0, path as u32, Ordering::AcqRel, Ordering::Relaxed)
         .is_ok()
@@ -699,6 +703,7 @@ unsafe fn desync_detector_match_limits(ctx: &InlineCtx) {
     for base in &STOCK_BASE {
         base.store(0, Ordering::Relaxed);
     }
+    POLL_LIVE.store(true, Ordering::Release);
     KO_PENDING_A.store(0, Ordering::Relaxed);
     END_PATH.store(0, Ordering::Release);
     PEER_PATH_LAST.store(0, Ordering::Relaxed);
@@ -772,40 +777,33 @@ unsafe fn desync_detector_ko_exit(_ctx: &InlineCtx) {
     push_event(EV_KO, a, b);
 }
 
-/// A pointer read from game memory that is plausible as an object address.
-fn plausible(pointer: u64) -> Option<u64> {
-    (pointer >= 0x10000 && pointer.is_multiple_of(8)).then_some(pointer)
-}
+/// Game memory for `matchlog::read_entries`: plain reads of addresses the chain checked.
+struct GameMemory;
 
-/// Entry `e`'s counters from its `FighterInformation` (`matchlog::FIGHTER_MANAGER`), if it exists. Reads only.
-unsafe fn fighter_counters(entry: usize) -> Option<Counters> {
-    if entry >= ENTRIES {
-        return None;
+impl matchlog::Memory for GameMemory {
+    fn u64_at(&self, at: u64) -> u64 {
+        // SAFETY: `read_entries` only follows pointers that `plausible` accepted, along the game's own chain.
+        unsafe { read_u64(at) }
     }
-    let manager = plausible(read_u64(TEXT_BASE.load(Ordering::Relaxed) + matchlog::FIGHTER_MANAGER as u64))?;
-    let entries = plausible(read_u64(manager))?;
-    let fighter = plausible(read_u64(entries + matchlog::ENTRY_AT + 8 * entry as u64))?;
-    let data = plausible(read_u64(fighter + matchlog::INFO_DATA_AT))?;
-    let suicides = (0..3u64).fold(0u32, |sum, i| {
-        sum.saturating_add(read_u32(data + matchlog::SUICIDE_A_AT + 4 * i))
-            .saturating_add(read_u32(data + matchlog::SUICIDE_B_AT + 4 * i))
-    });
-    Some(Counters {
-        dead: [
-            read_u32(data + matchlog::DEAD_AT),
-            read_u32(data + matchlog::DEAD_AT + 4),
-            read_u32(data + matchlog::DEAD_AT + 8),
-        ],
-        suicides,
-        stock: read_u32(data + matchlog::STOCK_AT),
-    })
+    fn u32_at(&self, at: u64) -> u32 {
+        unsafe { read_u32(at) }
+    }
+    fn u8_at(&self, at: u64) -> u8 {
+        unsafe { read_u8(at) }
+    }
 }
 
-/// Every online frame (the frame-check hook, game thread): each entry's dead and self-destruct totals against its
-/// baseline; one `stock_lost` per stock lost. Atomics and the event ring only: no I/O, no locks.
+/// Every online frame (the frame-check hook, game thread), only while the match is live (`POLL_LIVE`: from match
+/// setup to the match's first end): each live entry's dead and self-destruct totals against its baseline; one
+/// `stock_lost` per stock lost. Atomics and the event ring only: no I/O, no locks.
 unsafe fn poll_stocks(frame: u16) {
-    for (entry, slot) in STOCK_BASE.iter().enumerate() {
-        let Some(now) = fighter_counters(entry) else {
+    if !POLL_LIVE.load(Ordering::Acquire) {
+        return;
+    }
+    let mut found = [None; ENTRIES];
+    matchlog::read_entries(&GameMemory, TEXT_BASE.load(Ordering::Relaxed), &mut found);
+    for ((entry, slot), now) in STOCK_BASE.iter().enumerate().zip(found) {
+        let Some(now) = now else {
             continue;
         };
         let (next, lost) = stock_step(Baseline::unpack(slot.load(Ordering::Relaxed)), &now);
@@ -905,6 +903,7 @@ unsafe fn desync_detector_session_end(ctx: &InlineCtx) {
 /// `.16d5cd0`'s entry: the session stops. One summary line per session.
 #[skyline::hook(offset = matchlog::SESSION_STOP_OFFSET, inline)]
 unsafe fn desync_detector_session_stop(ctx: &InlineCtx) {
+    POLL_LIVE.store(false, Ordering::Release);
     let session = ctx.registers[0].x();
     if session < 0x10000 {
         return;
