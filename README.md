@@ -53,6 +53,9 @@ Copy `libssbu_desync_detector.nro` to
 to `sd:/ultimate/ssbu-desync-detector/`. Recordings are kept only for matches
 that did not end normally, and the log is capped, so it stays small.
 
+0.5.1 (unreleased) logs every stock a fighter loses (`stock_lost`, marked when it was a self-destruct) from the
+game's own per-fighter counters, and the summary's `kos=` and new `self_destructs=` count them.
+
 0.5.0 (unreleased) adds read-only match telemetry to `events.log`: the rules and fault-table limits at an online
 match's start, each KO the fault table counts, which peer-end path ended the session, the phase-6 end with its
 network result, and one `session_summary` line per session. With `ssbu-stall-press-carry` 0.2.0 loaded, the summary

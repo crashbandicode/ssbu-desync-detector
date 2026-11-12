@@ -12,10 +12,11 @@ use crate::disconnect::Reason;
 use crate::evidence::Evidence;
 use crate::lastsession::{self, LastSession};
 use crate::matchlog::{
-    self, describe_ko, describe_match_start, describe_peer_path, describe_session_end, describe_summary,
-    pack_ko, pack_peer_path, pack_session_end, phase6_path, unpack_ko, unpack_peer_path, unpack_session_end,
-    EndPath, Ko, MatchStart, PeerPath, SessionEnd, StallStatsV1, Summary, EV_KO, EV_MATCH_START, EV_PEER_PATH,
-    EV_SESSION_END, EV_SUMMARY, PATH_A, PATH_B, SIDE_WORDS,
+    self, describe_ko, describe_match_start, describe_peer_path, describe_session_end, describe_stock_lost,
+    describe_summary, pack_ko, pack_peer_path, pack_session_end, pack_stock_lost, phase6_path, stock_step, unpack_ko,
+    unpack_peer_path, unpack_session_end, unpack_stock_lost, Baseline, Counters, EndPath, Ko, MatchStart, PeerPath,
+    SessionEnd, StallStatsV1, StockLost, Summary, ENTRIES, EV_KO, EV_MATCH_START, EV_PEER_PATH, EV_SESSION_END,
+    EV_STOCK_LOST, EV_SUMMARY, PATH_A, PATH_B, SIDE_WORDS,
 };
 use crate::model::{
     self, describe, describe_fault, fault_code_is_logged, minimal_outer, pack_desync, pack_fault,
@@ -157,8 +158,12 @@ static SIDE_HEAD: AtomicU64 = AtomicU64::new(0);
 /// A KO's state before `.1363420`'s update, taken by its epilogue (game thread; bit 63 = set).
 static KO_PENDING_A: AtomicU64 = AtomicU64::new(0);
 static KO_PENDING_B: AtomicU64 = AtomicU64::new(0);
-/// KOs per entry since the match start, for the summary.
+/// Stocks lost per entry since the match start (0.5.1: every `stock_lost`), for the summary's `kos=`.
 static KO_COUNTS: [AtomicU32; 8] = [const { AtomicU32::new(0) }; 8];
+/// Of those, the self-destructs (`self_destructs=`).
+static SD_COUNTS: [AtomicU32; 8] = [const { AtomicU32::new(0) }; 8];
+/// Each entry's dead and self-destruct totals at the last poll (`Baseline::pack`; 0 = none). Game thread only.
+static STOCK_BASE: [AtomicU64; ENTRIES] = [const { AtomicU64::new(0) }; ENTRIES];
 /// The first end seen this match (`EndPath` code, 0 = none), its reason, fault code and caller.
 static END_PATH: AtomicU32 = AtomicU32::new(0);
 static END_REASON: AtomicU32 = AtomicU32::new(0);
@@ -411,6 +416,7 @@ unsafe fn desync_detector_frame_check(ctx: &mut InlineCtx) {
     }
     DISCONNECT_EVIDENCE.frame(tick(), KIND_ONLINE, ctx.registers[19].x(), frame);
     attach_fault_frame(frame);
+    poll_stocks(frame as u16);
     push_frame(FrameRecord {
         frame,
         rng: ctx.registers[11].w(),
@@ -686,8 +692,12 @@ unsafe fn session_frame() -> Option<u16> {
 /// match's counts; logs `match_start` only when the table is armed (an online melee mode).
 #[skyline::hook(offset = matchlog::MATCH_LIMITS_OFFSET, inline)]
 unsafe fn desync_detector_match_limits(ctx: &InlineCtx) {
-    for count in &KO_COUNTS {
+    for count in KO_COUNTS.iter().chain(SD_COUNTS.iter()) {
         count.store(0, Ordering::Relaxed);
+    }
+    // The first poll of the new match only sets each entry's baseline.
+    for base in &STOCK_BASE {
+        base.store(0, Ordering::Relaxed);
     }
     KO_PENDING_A.store(0, Ordering::Relaxed);
     END_PATH.store(0, Ordering::Release);
@@ -757,11 +767,64 @@ unsafe fn desync_detector_ko_exit(_ctx: &InlineCtx) {
         ko.stamps_after = stamps(object);
         ko.word2_after = read_u32(object + matchlog::FAULT_WORD2_AT);
     }
-    if let Some(count) = KO_COUNTS.get(usize::from(ko.entry)) {
-        count.fetch_add(1, Ordering::Relaxed);
-    }
+    // 0.5.1: `kos=` counts `stock_lost` (every lost stock); this line stays the fault table's own KO evidence.
     let (a, b) = pack_ko(&ko);
     push_event(EV_KO, a, b);
+}
+
+/// A pointer read from game memory that is plausible as an object address.
+fn plausible(pointer: u64) -> Option<u64> {
+    (pointer >= 0x10000 && pointer.is_multiple_of(8)).then_some(pointer)
+}
+
+/// Entry `e`'s counters from its `FighterInformation` (`matchlog::FIGHTER_MANAGER`), if it exists. Reads only.
+unsafe fn fighter_counters(entry: usize) -> Option<Counters> {
+    if entry >= ENTRIES {
+        return None;
+    }
+    let manager = plausible(read_u64(TEXT_BASE.load(Ordering::Relaxed) + matchlog::FIGHTER_MANAGER as u64))?;
+    let entries = plausible(read_u64(manager))?;
+    let fighter = plausible(read_u64(entries + matchlog::ENTRY_AT + 8 * entry as u64))?;
+    let data = plausible(read_u64(fighter + matchlog::INFO_DATA_AT))?;
+    let suicides = (0..3u64).fold(0u32, |sum, i| {
+        sum.saturating_add(read_u32(data + matchlog::SUICIDE_A_AT + 4 * i))
+            .saturating_add(read_u32(data + matchlog::SUICIDE_B_AT + 4 * i))
+    });
+    Some(Counters {
+        dead: [
+            read_u32(data + matchlog::DEAD_AT),
+            read_u32(data + matchlog::DEAD_AT + 4),
+            read_u32(data + matchlog::DEAD_AT + 8),
+        ],
+        suicides,
+        stock: read_u32(data + matchlog::STOCK_AT),
+    })
+}
+
+/// Every online frame (the frame-check hook, game thread): each entry's dead and self-destruct totals against its
+/// baseline; one `stock_lost` per stock lost. Atomics and the event ring only: no I/O, no locks.
+unsafe fn poll_stocks(frame: u16) {
+    for (entry, slot) in STOCK_BASE.iter().enumerate() {
+        let Some(now) = fighter_counters(entry) else {
+            continue;
+        };
+        let (next, lost) = stock_step(Baseline::unpack(slot.load(Ordering::Relaxed)), &now);
+        slot.store(next.pack(), Ordering::Relaxed);
+        let Some(lost) = lost else {
+            continue;
+        };
+        KO_COUNTS[entry].fetch_add(lost.stocks, Ordering::Relaxed);
+        SD_COUNTS[entry].fetch_add(lost.self_destructs, Ordering::Relaxed);
+        for i in 0..lost.stocks.min(4) {
+            let (a, b) = pack_stock_lost(&StockLost {
+                entry: entry as u8,
+                self_destruct: i < lost.self_destructs,
+                frame: Some(frame),
+                counters: now,
+            });
+            push_event(EV_STOCK_LOST, a, b);
+        }
+    }
 }
 
 fn note_peer_path(path: u8) {
@@ -851,9 +914,14 @@ unsafe fn desync_detector_session_stop(ctx: &InlineCtx) {
     for (ko, count) in kos.iter_mut().zip(KO_COUNTS.iter()) {
         *ko = count.load(Ordering::Relaxed).min(255) as u8;
     }
+    let mut self_destructs = [0u8; 8];
+    for (sd, count) in self_destructs.iter_mut().zip(SD_COUNTS.iter()) {
+        *sd = count.load(Ordering::Relaxed).min(255) as u8;
+    }
     let summary = Summary {
         frame: Some(read_u16(session + matchlog::SESSION_FRAME_AT)),
         kos,
+        self_destructs,
         fault_words: words,
         ended: EndPath::from_code(END_PATH.load(Ordering::Acquire) as u8),
         end_reason: END_REASON.load(Ordering::Relaxed) as u8,
@@ -1453,6 +1521,8 @@ impl Writer {
                 }
             } else if event.code == EV_KO {
                 let _ = describe_ko(event.tick, &unpack_ko(event.a, event.b), &mut line);
+            } else if event.code == EV_STOCK_LOST {
+                let _ = describe_stock_lost(event.tick, &unpack_stock_lost(event.a, event.b), &mut line);
             } else if event.code == EV_PEER_PATH {
                 let _ = describe_peer_path(event.tick, &unpack_peer_path(event.a, event.b), &mut line);
             } else if event.code == EV_SESSION_END {

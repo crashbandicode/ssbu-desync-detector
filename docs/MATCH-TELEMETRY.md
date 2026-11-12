@@ -16,7 +16,8 @@ counters. The 0.4.0 lines are unchanged.
 1 peer_end_path path=A frame=8444 station=1 peer_mask=0x3 end_reason=2 msg_type=7 msg_station=0 msg_word=7
 1 peer_end_path path=B frame=none station=0 peer_mask=0x1 caller=0x16cfa38
 3 session_end reason=1 fault_code=2 net_result=-993 phase_before=4 already_ending=1 frame=100 caller=0x16d8d3c via=countdown
-7 session_summary frame=5707 kos=1,0,0,0,0,0,0,0 fault_words=0,0,0,0,0,0,0,0,0,0 ended=sync_end_normal last_session=normal penalty_flag=unknown stall_press rescued=10 (jump=9 attack=1 special=0 shield=0 grab=0 other=0) dropped=123 committed=45 stalled=123 flick_carried=3 flick_lost=1 (reversal=1 superseded=0)
+9 stock_lost frame=446 entry=1 self_destruct=yes dead=1,0,0 suicides=1 stock=0
+7 session_summary frame=5707 kos=1,0,0,0,0,0,0,0 self_destructs=0,0,0,0,0,0,0,0 fault_words=0,0,0,0,0,0,0,0,0,0 ended=sync_end_normal last_session=normal penalty_flag=unknown stall_press rescued=10 (jump=9 attack=1 special=0 shield=0 grab=0 other=0) dropped=123 committed=45 stalled=123 flick_carried=3 flick_lost=1 (reversal=1 superseded=0)
 ```
 
 The first number is the system tick, as on every line.
@@ -35,7 +36,20 @@ The first number is the system tick, as on every line.
     pattern counted by `.1363420`.
   - `rules` is the setup block's first 64 bytes, raw. The stock, time and team fields in it are not named yet; the
     raw bytes are kept so they can be decoded later.
-- **`ko`**: one per call of the KO method the fault table counts (`.1363420`), while the table is armed. `entry` and
+- **`stock_lost`** (0.5.1): one per stock any entry loses, in every online match. The per-frame hook reads the game's
+  own per-fighter counters, laid out as its exported accessors read them (`FighterManager__get_fighter_information`
+  `.2140fc0`, `FighterInformation__dead_count` `.20c9e50`, `__suicide_count` `.20c9e90`, `__stock_count` `.20c9e80`):
+  the `FighterManager` is `*[main+0x52b94f8]`, entry `e` is `[[manager] + 0x20 + 8e]`, and its information data is
+  `[entry + 0xf8]`.
+  - `dead` is the three raw dead counts (`+0xcc`, `+0xd0`, `+0xd4`; what each slot means is not known).
+  - `suicides` is the total of the six self-destruct counts (`+0x14c..+0x160`).
+  - `stock` is the stocks left (`+0xd8`).
+  - `self_destruct=yes` when the self-destruct total rose with the dead total.
+  - The first poll of a match, and any count going down (a new battle), only set the baseline.
+- **`ko`**: one per call of the KO method the fault table counts (`.1363420`), while the table is armed. The game
+  does not call it for every lost stock: in Eden a run-off and a CPU's lost stock left no `ko` line
+  (`proof-dc8ee988-r4`, `-r6`, `-r7`), while a KO in a fight did (`-r5`). It is the fault table's own evidence;
+  `stock_lost` is the count of lost stocks. `entry` and
   `kind` are its arguments; kind 8 is not counted and its meaning is unknown. `stamps` is the stamp list's length and
   `fault_word2` the table's word 2, before and after the call. `frame` is the lockstep session's frame.
 - **`peer_end_path`**: path A is the receive handler `.16cc140`'s tail into `.16cced0` from `.16cc4d4`. Two of its
@@ -51,7 +65,8 @@ The first number is the system tick, as on every line.
   - `via` is `countdown` (the fault countdown's end, `.16d8d3c`), `start` (a failed session start, `.16d9328`) or
     `tail_call` (a tail call left the caller's caller in `caller`).
 - **`session_summary`**: when the session stops (`.16d5cd0`), one per session.
-  - `frame`; `kos`, the counted KOs per entry since `match_start`; and the fault table's ten words.
+  - `frame`; `kos`, the stocks each entry lost since the match started (0.5.1: every `stock_lost`; 0.5.0 counted
+    `ko` lines); `self_destructs`, how many of them were self-destructs; and the fault table's ten words.
   - `ended` is the first end seen in the match: `sync_end_normal`, `sync_end_abnormal`, `local_fault`, `peer_end_a`,
     `peer_end_b`, `start_failure`, `phase6_other`, or `none_seen` (the session stopped with no end, such as a lost
     connection). For the phase-6 ends it adds `end_reason`, `end_fault_code` and `end_caller`. A phase-6 end within

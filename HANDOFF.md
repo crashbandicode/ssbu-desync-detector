@@ -1,4 +1,17 @@
-# 0.5.0 match telemetry — 2026-11-12 (current)
+# 0.5.1 every lost stock — 2026-11-12 (current)
+
+- **Order:** the operator, via the primary 21:55Z: "yes build 0.5.1 and put it on the car[d]".
+- **Branch:** `release-0.5.1`, off `match-telemetry-050` `4c838f0`.
+- **What changed:**
+  - The frame-check hook reads each entry's `FighterInformation` counters (dead, self-destruct, stock) and logs
+    `stock_lost` per lost stock.
+  - `kos=` counts them; `self_destructs=` is new.
+  - The 0.5.0 `ko` line is unchanged (the fault table's KO method, credited KOs only).
+  - Dialogs and `model.rs` are byte-identical to `ac75be2`.
+- **Builds:** release `5e21192a…`, diag `474b7c1b…`; 165 host tests.
+- **Next:** integration's r8 on it; the card install (the primary); push after the card has it, no tag.
+
+# 0.5.0 match telemetry — 2026-11-12
 
 - **Work clone:** `/home/intpa/ssbu-desync-detector-050` on the Surface (`ubuntu-surface`), from the Yoga clone's
   `readme-gifs` at `ca0c149` (0.4.0). The Yoga clone's own uncommitted `HANDOFF.md` and `BRIEF-GIFS.md` were left

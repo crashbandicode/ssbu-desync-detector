@@ -155,6 +155,135 @@ pub const EV_KO: u8 = 13;
 pub const EV_PEER_PATH: u8 = 14;
 pub const EV_SESSION_END: u8 = 15;
 pub const EV_SUMMARY: u8 = 16;
+/// 0.5.1: an entry's own dead count rose (`stock_lost`).
+pub const EV_STOCK_LOST: u8 = 17;
+
+/// 0.5.1: the game's own per-fighter counters, as its exported accessors read them
+/// (`app::lua_bind::FighterManager__get_fighter_information_impl` `.2140fc0`, `FighterInformation__dead_count_impl`
+/// `.20c9e50`, `__suicide_count_impl` `.20c9e90`, `__stock_count_impl` `.20c9e80`).
+/// `*[main+FIGHTER_MANAGER]` is the `FighterManager`; `[[it] + ENTRY_AT + 8e]` is entry `e`'s `FighterEntry`; its
+/// `FighterInformation` is at `+0xf0`, whose data pointer is at `+0xf8` (`[info + 8]`).
+pub const FIGHTER_MANAGER: usize = 0x52b94f8;
+pub const ENTRY_AT: u64 = 0x20;
+pub const INFO_DATA_AT: u64 = 0xf8;
+pub const ENTRIES: usize = 8;
+/// Three `u32` dead counts (`dead_count(info, -2)` sums them); what each slot means is not known.
+pub const DEAD_AT: u64 = 0xcc;
+/// Two arrays of three `u32` self-destruct counts (`suicide_count(info, -2)` sums all six).
+pub const SUICIDE_A_AT: u64 = 0x14c;
+pub const SUICIDE_B_AT: u64 = 0x158;
+pub const STOCK_AT: u64 = 0xd8;
+
+/// One entry's counters at one poll.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Counters {
+    pub dead: [u32; 3],
+    pub suicides: u32,
+    pub stock: u32,
+}
+
+impl Counters {
+    pub fn dead_total(&self) -> u32 {
+        self.dead.iter().fold(0u32, |a, b| a.saturating_add(*b))
+    }
+}
+
+/// An entry's baseline: its dead and self-destruct totals at the last poll.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Baseline {
+    pub dead: u32,
+    pub suicides: u32,
+}
+
+impl Baseline {
+    /// For an atomic slot: bit 63 set, the dead total in bits 32..63, the self-destructs in the low 32.
+    pub const fn pack(self) -> u64 {
+        1 << 63 | ((self.dead & 0x7fff_ffff) as u64) << 32 | self.suicides as u64
+    }
+
+    pub const fn unpack(word: u64) -> Option<Self> {
+        if word >> 63 == 0 {
+            None
+        } else {
+            Some(Self { dead: (word >> 32) as u32 & 0x7fff_ffff, suicides: word as u32 })
+        }
+    }
+}
+
+/// What one poll of one entry found: how many stocks it lost since the last poll, and how many of them were
+/// self-destructs.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Lost {
+    pub stocks: u32,
+    pub self_destructs: u32,
+}
+
+/// One entry's step: the first poll of a match (no baseline) and any count going down (a new battle) only set the
+/// baseline; a rise in the dead total is that many lost stocks, the self-destruct rise (at most as many) of them
+/// self-destructs.
+pub fn stock_step(base: Option<Baseline>, now: &Counters) -> (Baseline, Option<Lost>) {
+    let next = Baseline { dead: now.dead_total(), suicides: now.suicides };
+    match base {
+        Some(b) if next.dead >= b.dead && next.suicides >= b.suicides => {
+            let stocks = next.dead - b.dead;
+            let lost = (stocks > 0).then(|| Lost { stocks, self_destructs: (next.suicides - b.suicides).min(stocks) });
+            (next, lost)
+        }
+        _ => (next, None),
+    }
+}
+
+/// One `stock_lost` line.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StockLost {
+    pub entry: u8,
+    pub self_destruct: bool,
+    pub frame: Option<u16>,
+    pub counters: Counters,
+}
+
+pub fn pack_stock_lost(s: &StockLost) -> (u64, u64) {
+    let c = &s.counters;
+    let a = u64::from(s.entry)
+        | u64::from(s.self_destruct) << 8
+        | u64::from(s.frame.unwrap_or(0)) << 16
+        | u64::from(s.frame.is_some()) << 32
+        | u64::from(c.stock.min(0xffff)) << 40;
+    let b = u64::from(c.dead[0].min(0xffff))
+        | u64::from(c.dead[1].min(0xffff)) << 16
+        | u64::from(c.dead[2].min(0xffff)) << 32
+        | u64::from(c.suicides.min(0xffff)) << 48;
+    (a, b)
+}
+
+pub fn unpack_stock_lost(a: u64, b: u64) -> StockLost {
+    StockLost {
+        entry: a as u8,
+        self_destruct: a >> 8 & 1 != 0,
+        frame: (a >> 32 & 1 != 0).then_some((a >> 16) as u16),
+        counters: Counters {
+            dead: [b as u16 as u32, (b >> 16) as u16 as u32, (b >> 32) as u16 as u32],
+            suicides: (b >> 48) as u16 as u32,
+            stock: (a >> 40) as u16 as u32,
+        },
+    }
+}
+
+pub fn describe_stock_lost(tick: u64, s: &StockLost, out: &mut impl fmt::Write) -> fmt::Result {
+    let c = &s.counters;
+    write!(
+        out,
+        "{tick} stock_lost frame={} entry={} self_destruct={} dead={},{},{} suicides={} stock={}",
+        Frame(s.frame),
+        s.entry,
+        if s.self_destruct { "yes" } else { "no" },
+        c.dead[0],
+        c.dead[1],
+        c.dead[2],
+        c.suicides,
+        c.stock
+    )
+}
 
 /// Side-record words per event (the event's `a` carries the record's sequence number).
 pub const SIDE_WORDS: usize = 12;
@@ -480,7 +609,10 @@ pub fn describe_peer_path(tick: u64, p: &PeerPath, out: &mut impl fmt::Write) ->
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Summary {
     pub frame: Option<u16>,
+    /// 0.5.1: every stock each entry lost (`stock_lost`), self-destructs included.
     pub kos: [u8; 8],
+    /// 0.5.1: of those, the self-destructs.
+    pub self_destructs: [u8; 8],
     pub fault_words: Option<[u32; 10]>,
     pub ended: EndPath,
     pub end_reason: u8,
@@ -509,6 +641,7 @@ impl Summary {
             }
         }
         w[8] = u64::from(self.penalty.unwrap_or(0));
+        w[9] = u64::from_le_bytes(self.self_destructs);
         w
     }
 
@@ -524,6 +657,7 @@ impl Summary {
         Self {
             frame: (w[0] >> 16 & 1 != 0).then_some(w[0] as u16),
             kos: w[2].to_le_bytes(),
+            self_destructs: w[9].to_le_bytes(),
             fault_words,
             ended: EndPath::from_code((w[0] >> 24) as u8),
             end_reason: (w[0] >> 32) as u8,
@@ -579,6 +713,10 @@ pub fn describe_summary(
     write!(out, "{tick} session_summary frame={} kos=", Frame(s.frame))?;
     for (i, ko) in s.kos.iter().enumerate() {
         write!(out, "{}{ko}", if i == 0 { "" } else { "," })?;
+    }
+    out.write_str(" self_destructs=")?;
+    for (i, sd) in s.self_destructs.iter().enumerate() {
+        write!(out, "{}{sd}", if i == 0 { "" } else { "," })?;
     }
     out.write_str(" fault_words=")?;
     match s.fault_words {
@@ -769,6 +907,7 @@ mod tests {
         let s = Summary {
             frame: Some(5707),
             kos: [1, 0, 0, 0, 0, 0, 0, 0],
+            self_destructs: [0; 8],
             fault_words: Some([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
             ended: EndPath::SyncEndNormal,
             end_reason: 0,
@@ -780,8 +919,8 @@ mod tests {
         let bare = text(|o| describe_summary(7, &s, "normal", None, o));
         assert_eq!(
             bare,
-            "7 session_summary frame=5707 kos=1,0,0,0,0,0,0,0 fault_words=0,0,0,0,0,0,0,0,0,0 ended=sync_end_normal \
-             last_session=normal penalty_flag=unknown"
+            "7 session_summary frame=5707 kos=1,0,0,0,0,0,0,0 self_destructs=0,0,0,0,0,0,0,0 \
+             fault_words=0,0,0,0,0,0,0,0,0,0 ended=sync_end_normal last_session=normal penalty_flag=unknown"
         );
         let known = Summary { penalty: Some(3), ..s };
         assert_eq!(Summary::from_words(&known.words()), known);
@@ -817,5 +956,92 @@ mod tests {
         assert!(stall_stats(None).is_none());
         assert!(stall_stats(Some(StallStatsV1 { size: 8, version: 1, ..StallStatsV1::default() })).is_none());
         assert!(stall_stats(Some(StallStatsV1 { size: 72, version: 1, ..StallStatsV1::default() })).is_some());
+    }
+
+    fn counters(dead: [u32; 3], suicides: u32, stock: u32) -> Counters {
+        Counters { dead, suicides, stock }
+    }
+
+    #[test]
+    fn the_first_poll_only_sets_the_baseline() {
+        // Mid-match counts at the first poll (the previous battle's entry, or a late start): no event.
+        let (base, lost) = stock_step(None, &counters([1, 0, 0], 1, 2));
+        assert_eq!(lost, None);
+        assert_eq!(base, Baseline { dead: 1, suicides: 1 });
+        assert_eq!(Baseline::unpack(base.pack()), Some(base));
+        assert_eq!(Baseline::unpack(0), None);
+        // Nothing changed: no event.
+        assert_eq!(stock_step(Some(base), &counters([1, 0, 0], 1, 2)).1, None);
+    }
+
+    #[test]
+    fn a_stock_lost_to_a_hit_is_not_a_self_destruct() {
+        let base = Some(Baseline { dead: 0, suicides: 0 });
+        let (next, lost) = stock_step(base, &counters([1, 0, 0], 0, 2));
+        assert_eq!(lost, Some(Lost { stocks: 1, self_destructs: 0 }));
+        assert_eq!(next, Baseline { dead: 1, suicides: 0 });
+    }
+
+    #[test]
+    fn a_self_destruct_is_named() {
+        let base = Some(Baseline { dead: 1, suicides: 0 });
+        // The dead total counts all three slots.
+        let (_, lost) = stock_step(base, &counters([1, 0, 1], 1, 1));
+        assert_eq!(lost, Some(Lost { stocks: 1, self_destructs: 1 }));
+    }
+
+    #[test]
+    fn two_stocks_in_one_poll_count_twice() {
+        let base = Some(Baseline { dead: 0, suicides: 0 });
+        let (_, lost) = stock_step(base, &counters([2, 0, 0], 1, 1));
+        assert_eq!(lost, Some(Lost { stocks: 2, self_destructs: 1 }));
+        // A self-destruct count can't exceed the stocks lost in the same poll.
+        let (_, lost) = stock_step(base, &counters([1, 0, 0], 3, 2));
+        assert_eq!(lost, Some(Lost { stocks: 1, self_destructs: 1 }));
+    }
+
+    #[test]
+    fn a_count_going_down_starts_a_new_baseline() {
+        // The next battle's entry starts from zero: a new baseline, no event.
+        let base = Some(Baseline { dead: 3, suicides: 1 });
+        let (next, lost) = stock_step(base, &counters([0, 0, 0], 0, 3));
+        assert_eq!((next, lost), (Baseline { dead: 0, suicides: 0 }, None));
+        let (_, lost) = stock_step(Some(Baseline { dead: 3, suicides: 1 }), &counters([4, 0, 0], 0, 0));
+        assert_eq!(lost, None, "the self-destruct count went down: a new battle");
+    }
+
+    #[test]
+    fn stock_lost_round_trips_and_prints() {
+        let s = StockLost { entry: 1, self_destruct: true, frame: Some(446), counters: counters([1, 0, 0], 1, 0) };
+        let (a, b) = pack_stock_lost(&s);
+        assert_eq!(unpack_stock_lost(a, b), s);
+        assert_eq!(
+            text(|o| describe_stock_lost(9, &s, o)),
+            "9 stock_lost frame=446 entry=1 self_destruct=yes dead=1,0,0 suicides=1 stock=0"
+        );
+        let hit = StockLost { self_destruct: false, frame: None, ..s };
+        let (a, b) = pack_stock_lost(&hit);
+        assert!(text(|o| describe_stock_lost(9, &unpack_stock_lost(a, b), o))
+            .starts_with("9 stock_lost frame=none entry=1 self_destruct=no "));
+        assert_eq!(EV_STOCK_LOST, 17);
+    }
+
+    #[test]
+    fn the_summary_counts_every_lost_stock_and_the_self_destructs() {
+        // Entry 0 lost a stock to a hit, entry 1 two: one to a hit, one a self-destruct.
+        let s = Summary {
+            frame: Some(3004),
+            kos: [1, 2, 0, 0, 0, 0, 0, 0],
+            self_destructs: [0, 1, 0, 0, 0, 0, 0, 0],
+            ended: EndPath::SyncEndNormal,
+            ..Summary::default()
+        };
+        assert_eq!(Summary::from_words(&s.words()), s);
+        let line = text(|o| describe_summary(7, &s, "normal", None, o));
+        assert!(
+            line.starts_with("7 session_summary frame=3004 kos=1,2,0,0,0,0,0,0 self_destructs=0,1,0,0,0,0,0,0 "),
+            "{line}"
+        );
+        assert!(line.contains(" fault_words=unread ended=sync_end_normal last_session=normal penalty_flag=unknown"));
     }
 }
