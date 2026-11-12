@@ -162,7 +162,7 @@ fn texts_are_stable_static_complete_sentences() {
         (
             Reason::PeerEnded,
             "peer_ended",
-            "The other console ended the session.",
+            "Your opponent disconnected.",
         ),
         (
             Reason::Timeout,
@@ -210,6 +210,11 @@ fn texts_are_stable_static_complete_sentences() {
         assert!(!text.chars().any(|c| c.is_ascii_digit()), "{text}");
         assert!(text.len() <= 100, "{text}");
         for word in forbidden {
+            // 0.5.0 (order of 2026-11-12, relayed by the primary at 18:09Z): a session the other console ended says
+            // plainly that the opponent disconnected, so that one text addresses the player.
+            if reason == Reason::PeerEnded && word == "your" {
+                continue;
+            }
             assert!(!text.to_lowercase().contains(word), "{text} has {word}");
         }
         assert!(reason
@@ -593,7 +598,7 @@ fn an_abnormal_peer_end_is_reported_and_the_normal_reason_is_not() {
     // The text claims an ended session, not a departure.
     assert_eq!(
         Reason::PeerEnded.text(),
-        "The other console ended the session."
+        "Your opponent disconnected."
     );
 }
 

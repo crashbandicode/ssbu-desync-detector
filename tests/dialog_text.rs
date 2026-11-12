@@ -234,7 +234,7 @@ fn both_routes_append_the_same_way_for_one_table_of_cases() {
         ),
         (
             "already augmented",
-            "A connection error occurred.\n\nReason: The other console ended the session.",
+            "A connection error occurred.\n\nReason: Your opponent disconnected.",
             None,
             Tamper::None,
             Outcome::Asked,
@@ -582,4 +582,68 @@ fn a_withheld_verdict_leaves_the_canceled_notice_unchanged() {
     assert!(asked.get());
     assert!(result.is_none());
     assert_eq!(&frame.buffer(&dialog::PLAIN)[..units.len()], &units[..]);
+}
+
+const WARNING: &str = "You disconnected in the middle of your last online battle.\n\nIf you disconnect too many times, you may be restricted\nfrom online battles for a while.";
+const REPLACEMENT: &str = "Your opponent disconnected in your last online battle.";
+
+#[test]
+fn the_reconnect_warning_is_replaced_whole_and_the_rest_is_zeroed() {
+    let (mut text, len) = native(WARNING);
+    let new_len = dialog::replace_reconnect_warning(&mut text, len, REPLACEMENT).unwrap();
+    assert_eq!(String::from_utf16(&text[..new_len]).unwrap(), REPLACEMENT);
+    assert!(text[new_len..=len].iter().all(|unit| *unit == 0));
+    // Replaced once: the new text is no longer the warning, so a second call writes nothing.
+    let before = text;
+    assert_eq!(dialog::replace_reconnect_warning(&mut text, new_len, REPLACEMENT), None);
+    assert_eq!(text, before);
+    // A replacement longer than the warning still ends in a terminator.
+    let (mut short, short_len) = native("You disconnected in the middle of your last online battle.");
+    let long = "Your opponent disconnected in your last online battle. That console ended the session.";
+    let long_len = dialog::replace_reconnect_warning(&mut short, short_len, long).unwrap();
+    assert_eq!((long_len, short[long_len]), (long.len(), 0));
+}
+
+#[test]
+fn only_the_reconnect_warning_is_ever_replaced() {
+    for message in [
+        "Canceled",
+        "Canceled.",
+        "A communication error has occurred.\nError Code: 2618-0516",
+        "You have been disconnected due to inactivity.",
+    ] {
+        let (mut text, len) = native(message);
+        let before = text;
+        assert_eq!(dialog::replace_reconnect_warning(&mut text, len, REPLACEMENT), None, "{message}");
+        assert_eq!(text, before);
+    }
+    // A bad count or a missing terminator writes nothing.
+    let (mut text, len) = native(WARNING);
+    text[len] = 0x41;
+    let before = text;
+    assert_eq!(dialog::replace_reconnect_warning(&mut text, len, REPLACEMENT), None);
+    assert_eq!(dialog::replace_reconnect_warning(&mut text, CAPACITY, REPLACEMENT), None);
+    assert_eq!(text, before);
+}
+
+#[test]
+fn the_reconnect_warning_is_replaced_in_the_plain_frame() {
+    let mut frame = NativeFrame::new(&dialog::PLAIN);
+    let units: Vec<u16> = WARNING.encode_utf16().collect();
+    frame.buffer(&dialog::PLAIN)[..units.len()].copy_from_slice(&units);
+    let sp = frame.sp;
+    let new_len = unsafe {
+        dialog::replace_in_frame(&dialog::PLAIN, TEXT_BASE, sp, sp + dialog::PLAIN.fp, units.len(), REPLACEMENT)
+    }
+    .unwrap();
+    assert_eq!(String::from_utf16(&frame.buffer(&dialog::PLAIN)[..new_len]).unwrap(), REPLACEMENT);
+    // The wrong frame pointer: nothing is touched.
+    let mut other = NativeFrame::new(&dialog::PLAIN);
+    other.buffer(&dialog::PLAIN)[..units.len()].copy_from_slice(&units);
+    let osp = other.sp;
+    let result = unsafe {
+        dialog::replace_in_frame(&dialog::PLAIN, TEXT_BASE, osp, osp + dialog::PLAIN.fp + 16, units.len(), REPLACEMENT)
+    };
+    assert_eq!(result, None);
+    assert_eq!(&other.buffer(&dialog::PLAIN)[..units.len()], &units[..]);
 }

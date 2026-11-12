@@ -2,7 +2,7 @@
 //!
 //! Session identity comes from the existing frame hook, before file I/O. A
 //! missed mutation invalidates the episode rather than risking an old reason.
-use crate::disconnect::{Latch, Reason, VERDICT_WINDOW_TICKS};
+use crate::disconnect::{Latch, Reason, Verdict, VERDICT_WINDOW_TICKS};
 use crate::model::{RawEvent, EV_LINK, KIND_ONLINE, KIND_PLAYBACK};
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -143,6 +143,20 @@ impl Evidence {
         });
     }
 
+    /// The online session's verdict at `now` without marking a dialog as shown (the writer's
+    /// `last-session.txt`). `None` when no online session is in scope, the lock is busy or a fact was lost.
+    pub fn peek(&self, now: u64) -> Option<Verdict> {
+        self.access(false, |state| {
+            let epoch = self.losses.load(Ordering::Acquire);
+            if state.kind != KIND_ONLINE || epoch != state.loss_epoch || now < state.last_tick {
+                return None;
+            }
+            let verdict = state.latch.verdict(now);
+            (epoch == self.losses.load(Ordering::Acquire)).then_some(verdict)
+        })
+        .flatten()
+    }
+
     /// Only the native communication-error text requests a precise reason.
     /// Failure or uncertain lifetime withholds that classification; the UI
     /// caller can append Unknown. This never opens a UI.
@@ -198,5 +212,24 @@ mod tests {
         assert_eq!(evidence.reason(3), None);
         evidence.frame(4, KIND_ONLINE, 0x10000, 0);
         assert_eq!(evidence.reason(5), Some(Reason::Unknown));
+    }
+
+    #[test]
+    fn peek_gives_the_verdict_without_marking_a_dialog() {
+        use crate::disconnect::{Verdict, TICKS_PER_SECOND};
+        use crate::model::EV_PEER_ABORT;
+        let evidence = Evidence::new();
+        assert_eq!(evidence.peek(1), None);
+        evidence.frame(10, KIND_ONLINE, 0x10000, 20);
+        // The other console's end message with an abnormal reason (2).
+        evidence.event(0x10000, &RawEvent { tick: 11, code: EV_PEER_ABORT, a: 2 << 8, b: 0 });
+        assert_eq!(evidence.peek(12), Some(Verdict::Show(Reason::PeerEnded)));
+        // Peeking marked no dialog: a link observation after it still counts (a dialog would have frozen the
+        // evidence), so the local fault now takes precedence.
+        evidence.link(13, 0, 0);
+        assert_eq!(evidence.reason(14), Some(Reason::LocalLink));
+        // A playback session is not online.
+        evidence.frame(20 * TICKS_PER_SECOND, crate::model::KIND_PLAYBACK, 0x20000, 1);
+        assert_eq!(evidence.peek(21 * TICKS_PER_SECOND), None);
     }
 }

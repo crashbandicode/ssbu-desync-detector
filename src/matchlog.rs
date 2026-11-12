@@ -486,6 +486,9 @@ pub struct Summary {
     pub end_reason: u8,
     pub end_fault_code: u8,
     pub end_caller: u64,
+    /// The game's own disconnect-penalty state for this console, read-only, when a field is known (none is yet:
+    /// `penalty_flag=unknown`).
+    pub penalty: Option<u32>,
 }
 
 impl Summary {
@@ -496,7 +499,8 @@ impl Summary {
             | u64::from(self.fault_words.is_some()) << 17
             | u64::from(self.ended as u8) << 24
             | u64::from(self.end_reason) << 32
-            | u64::from(self.end_fault_code) << 40;
+            | u64::from(self.end_fault_code) << 40
+            | u64::from(self.penalty.is_some()) << 48;
         w[1] = self.end_caller;
         w[2] = u64::from_le_bytes(self.kos);
         if let Some(words) = self.fault_words {
@@ -504,6 +508,7 @@ impl Summary {
                 w[3 + i] = u64::from(pair[0]) | u64::from(pair[1]) << 32;
             }
         }
+        w[8] = u64::from(self.penalty.unwrap_or(0));
         w
     }
 
@@ -524,6 +529,7 @@ impl Summary {
             end_reason: (w[0] >> 32) as u8,
             end_fault_code: (w[0] >> 40) as u8,
             end_caller: w[1],
+            penalty: (w[0] >> 48 & 1 != 0).then_some(w[8] as u32),
         }
     }
 }
@@ -562,9 +568,11 @@ pub fn stall_stats(answer: Option<StallStatsV1>) -> Option<StallStatsV1> {
     answer.filter(|s| s.size >= STALL_V1_SIZE && s.version >= 1)
 }
 
+/// `last_session` is the verdict token written to `last-session.txt` for this session (`lastsession::LastSession`).
 pub fn describe_summary(
     tick: u64,
     s: &Summary,
+    last_session: &str,
     stall: Option<&StallStatsV1>,
     out: &mut impl fmt::Write,
 ) -> fmt::Result {
@@ -588,6 +596,11 @@ pub fn describe_summary(
             " end_reason={} end_fault_code={} end_caller=0x{:x}",
             s.end_reason, s.end_fault_code, s.end_caller
         )?;
+    }
+    write!(out, " last_session={last_session} penalty_flag=")?;
+    match s.penalty {
+        Some(value) => write!(out, "{value}")?,
+        None => out.write_str("unknown")?,
     }
     if let Some(t) = stall {
         write!(
@@ -761,13 +774,19 @@ mod tests {
             end_reason: 0,
             end_fault_code: 0,
             end_caller: 0,
+            penalty: None,
         };
         assert_eq!(Summary::from_words(&s.words()), s);
-        let bare = text(|o| describe_summary(7, &s, None, o));
+        let bare = text(|o| describe_summary(7, &s, "normal", None, o));
         assert_eq!(
             bare,
-            "7 session_summary frame=5707 kos=1,0,0,0,0,0,0,0 fault_words=0,0,0,0,0,0,0,0,0,0 ended=sync_end_normal"
+            "7 session_summary frame=5707 kos=1,0,0,0,0,0,0,0 fault_words=0,0,0,0,0,0,0,0,0,0 ended=sync_end_normal \
+             last_session=normal penalty_flag=unknown"
         );
+        let known = Summary { penalty: Some(3), ..s };
+        assert_eq!(Summary::from_words(&known.words()), known);
+        assert!(text(|o| describe_summary(7, &known, "peer_ended", None, o))
+            .ends_with(" last_session=peer_ended penalty_flag=3"));
         let stall = StallStatsV1 {
             size: 72,
             version: 1,
@@ -780,14 +799,14 @@ mod tests {
             flick_lost_reversal: 1,
             ..StallStatsV1::default()
         };
-        let line = text(|o| describe_summary(7, &s, Some(&stall), o));
+        let line = text(|o| describe_summary(7, &s, "normal", Some(&stall), o));
         assert!(line.ends_with(
-            " stall_press rescued=10 (jump=9 attack=1 special=0 shield=0 grab=0 other=0) dropped=123 committed=45 \
+            " penalty_flag=unknown stall_press rescued=10 (jump=9 attack=1 special=0 shield=0 grab=0 other=0) dropped=123 committed=45 \
              stalled=123 flick_carried=3 flick_lost=1 (reversal=1 superseded=0)"
         ));
         assert!(line.len() < 512);
         let fault = Summary { ended: EndPath::LocalFault, end_reason: 1, end_fault_code: 2, end_caller: CALLER_COUNTDOWN, fault_words: None, ..s };
-        let f = text(|o| describe_summary(7, &Summary::from_words(&fault.words()), None, o));
+        let f = text(|o| describe_summary(7, &Summary::from_words(&fault.words()), "unknown", None, o));
         assert!(f.contains("fault_words=unread ended=local_fault end_reason=1 end_fault_code=2 end_caller=0x16d8d3c"));
     }
 

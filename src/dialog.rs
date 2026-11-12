@@ -265,6 +265,53 @@ pub unsafe fn append_in_frame(
     append_reason(buffer, len, reason).map(|len| (reason, len))
 }
 
+/// The reconnect warning in a guarded frame replaced by `text` (`lastsession::choose`). Checks the frame and the
+/// caller as [`append_in_frame`] does. Returns the new count.
+///
+/// # Safety
+/// As [`append_in_frame`].
+pub unsafe fn replace_in_frame(
+    route: &Route,
+    text_base: u64,
+    sp: u64,
+    fp: u64,
+    len: usize,
+    text: &str,
+) -> Option<usize> {
+    if len >= CAPACITY {
+        return None;
+    }
+    let frame = route.frame(sp, fp)?;
+    if let (Some(slot), Some((_, offset))) = (frame.saved_lr, route.caller) {
+        if (slot as *const u64).read_unaligned() != text_base.checked_add(offset)? {
+            return None;
+        }
+    }
+    let buffer = core::slice::from_raw_parts_mut(frame.buffer as *mut u16, CAPACITY);
+    replace_reconnect_warning(buffer, len, text)
+}
+
+/// Replaces the whole reconnect warning with `text` (ASCII), zeroing what is left of the old text. No write unless
+/// the buffer holds that warning with a terminator at `len` and `text` fits. Returns the new count.
+pub fn replace_reconnect_warning(buffer: &mut [u16], len: usize, text: &str) -> Option<usize> {
+    if len >= buffer.len()
+        || buffer[len] != 0
+        || notice_kind(&buffer[..len]) != Some(NOTICE_RECONNECT)
+        || !text.is_ascii()
+        || text.len() >= buffer.len()
+    {
+        return None;
+    }
+    let new_len = text.len();
+    for (slot, unit) in buffer.iter_mut().zip(text.encode_utf16()) {
+        *slot = unit;
+    }
+    for slot in &mut buffer[new_len..=len.max(new_len)] {
+        *slot = 0;
+    }
+    Some(new_len)
+}
+
 /// Text tags have embedded zero words. Skip their payload for matching,
 /// while retaining every original unit when the suffix is appended.
 #[derive(Clone)]
