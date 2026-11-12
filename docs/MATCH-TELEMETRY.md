@@ -27,8 +27,12 @@ The first number is the system tick, as on every line.
   - `watched` and `watched_n` are the entries the fault table watches (`+0xc`, `+0x10`).
   - `limits` names the block the game chose: `+0x38` for one watched entry, `+0x40` for more, then its window in
     seconds and its two counts. Read from a running game (Eden, 2026-11-12): `+0x38` is 30 s, 3, 4 and `+0x40` is
-    30 s, 6, 7. With both players watched, the countdown arms on `n` counted KOs within the window or on the `l`-th
-    counted KO of the match. A 3-stock 1v1 has at most 5 KOs.
+    30 s, 6, 7. In an Eden Quickplay 1v1 (`proof-dc8ee988-r2`) each console watched only its own fighter
+    (`watched=0x02 watched_n=1` on one, `0x01` on the other), so the `+0x38` block applied.
+  - The fault table looks like the game's own penalty evaluator (the string `GamePenaltyEvaluatorManager::process` is
+    referenced at `.1354a94`). In that run, the idle console (a shield tap every 2 s for about 54 s) armed code 1
+    (`fault code=1 … words=0,1,0,…`) and was removed with "Canceled." and `net_result=-993`. Code 2 is the KO
+    pattern counted by `.1363420`.
   - `rules` is the setup block's first 64 bytes, raw. The stock, time and team fields in it are not named yet; the
     raw bytes are kept so they can be decoded later.
 - **`ko`**: one per call of the KO method the fault table counts (`.1363420`), while the table is armed. `entry` and
