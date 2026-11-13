@@ -4,123 +4,81 @@
 > (Claude, Codex and other coding agents) under the operator's direction and
 > review. Nothing is claimed beyond the dated tests cited below.
 
-Skyline plugin for Super Smash Bros. Ultimate 13.0.5 that records what ended
-an online match and keeps the evidence a vanilla replay needs to show which
-console desynced. It observes match state without changing the simulation.
+A Skyline plugin for Super Smash Bros. Ultimate 13.0.5. When an online match
+ends because the two consoles stopped agreeing (a desync), it notes the frame
+and keeps the match's recording, so an unmodded game can replay it and show
+which console left vanilla. It also adds the reason to the game's own
+connection-error pop-up. It reads the match and never changes it.
 
 ![Referee](docs/media/referee.gif)
 
-*An unmodded game plays back the recording of a console that left vanilla and
-refuses to go on past the desync (Eden, 2026-10-29).*
+*Eden, 2026-10-29, detector build `b15e929`: an unmodded game plays back the
+recording of the console that left vanilla and stops at the desync ("This
+replay can't be played"). The run is in [docs/EDEN-PROOF.md](docs/EDEN-PROOF.md).*
 
 ## How it works
 
-**1. Play online.** Each frame both consoles compare one check value. On a "No
-contest" the log shows the frame and both values, and the match's recording is
-saved as `match-N.bin`:
+1. **Play online.** Each frame both consoles compare one check value. When
+   they disagree, the plugin writes the frame and both values to its log and
+   saves the match's recording as `match-N.bin`. Both consoles see the same
+   two values, so the values alone can't say which one left vanilla.
+2. **Replay it unmodded.** Copy `match-N.bin` to
+   `save_data/replay/replayYYYYMMDDhhmmss.bin` in a game with only this plugin
+   (Eden works) and play it from the Vault. If this console left vanilla, the
+   game stops where it can no longer reproduce the recording (above).
+3. **Ask the referee.** With both detector folders:
 
-```text
-desync frame=1128 ours=0x720d5ecb theirs=0x4aec250b peer=1
-sync_end trigger=desync kind=2 frame=1132 local=0 desync_seen=1
-recording slot=0 entry=0 bytes=23088 records=1170 source=committed outer=game
-```
+   ```text
+   cargo run --example referee -- <console-dir> <slot> <vanilla-dir> <slot>
+   ```
 
-The values alone can't say who left vanilla: both consoles log the same pair.
+   It ends with a verdict: this console left vanilla, the other console left
+   vanilla, both did, or inconclusive.
 
-**2. Replay it unmodded.** Copy `match-N.bin` to
-`save_data/replay/replayYYYYMMDDhhmmss.bin` in a game with only this plugin
-(Eden works) and play it from the Vault. If this console left vanilla, the
-game stops where it can no longer reproduce it (above).
-
-**3. Ask the referee.** With both detector folders:
-
-```text
-cargo run --example referee -- <console-dir> 0 <vanilla-dir> 1
-desync:   frame 1128, from station 1
-          this console  0x720d5ecb
-          other console 0x4aec250b
-vanilla:  at the desync frame 0x4aec250b = the other console's value
-verdict:  this console left vanilla
-```
-
-Whichever value the vanilla game reproduces belongs to the console that
-stayed vanilla.
-
-## Install
-
-Copy `libssbu_desync_detector.nro` to
-`sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/`. Output goes
-to `sd:/ultimate/ssbu-desync-detector/`. Recordings are kept only for matches
-that did not end normally, and the log is capped, so it stays small.
-
-0.5.1 (unreleased) logs every stock a fighter loses (`stock_lost`, marked when it was a self-destruct) from the
-game's own per-fighter counters, and the summary's `kos=` and new `self_destructs=` count them.
-
-0.5.0 (unreleased) adds read-only match telemetry to `events.log`: the rules and fault-table limits at an online
-match's start, each KO the fault table counts, which peer-end path ended the session, the phase-6 end with its
-network result, and one `session_summary` line per session. With `ssbu-stall-press-carry` 0.2.0 loaded, the summary
-also shows how many presses and stick flicks that plugin carried. The last online session's verdict is also kept in
-`last-session.txt`. The dialogs are unchanged from 0.4.0. Host tests cover every line. Not yet seen in a match. See
-[docs/MATCH-TELEMETRY.md](docs/MATCH-TELEMETRY.md).
-
-[0.4.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.4.0)
-(2026-11-07) writes one `events.log` line when Smash arms the countdown that
-stops the frame counter: the fault-table number (`code`), the frame, the
-mask, and the ten table words. It also appends the same evidence-based
-reason to the English labels "Canceled", "Canceled.", and the reconnect
-warning "You disconnected in the middle of your last online battle.", and
-logs which function asked for that text. A notice with no session verdict
-is left unchanged. Host tests cover the line and those labels. Not yet
-seen on a Switch or in Eden.
-
-[0.3.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.3.0)
-(2026-11-06) adds the disconnect reason and telemetry below. In Eden the
-game's "A connection error has occurred." pop-up then shows the reason.
-Not yet seen on a Switch.
+## The reason in the pop-up
 
 | | Without the reason | With 0.3.0 |
 |---|---|---|
 | **Desync** | ![Desync, without the reason: the game's connection-error pop-up and no Reason line](docs/media/desync-before.gif) | ![Desync, with 0.3.0: the same pop-up plus Reason: Desync detected](docs/media/desync-after.gif) |
 
-*Eden, 2026-11-06. The same Quickplay route, TrainingRooms 0.2.0-rc.2
-(`23b89786`) on station 1 only, so the first death desyncs. Without: released
-0.2.0 (`29067bb6`, commit `550cae6`), run `dd-gif-b1`, desync frame 908, the game's own
-"A connection error has occurred." With: released 0.3.0 (`0ac90bc6`, commit
-`49214c1`), run `dd-gif-a1`, desync frame 732, the same pop-up plus
-"Reason: Desync detected. The consoles stopped agreeing on the match."
-Peer ended, timeout, local link, local status and unknown were not reproduced:
-Home, then stopping the other instance, showed "You have been disconnected due
-to inactivity." and neither build logged `peer_end`, `sync_end` or
-`communication_text` (`dd-gif-a2`, `dd-gif-a3`, `dd-gif-b2`, `dd-gif-b3`).*
+*Eden, 2026-11-06, the same Quickplay route with TrainingRooms 0.2.0-rc.2
+(`23b89786`) on one console, so the first death desyncs. Without: release
+0.2.0 (`29067bb6`, commit `1daf9a2`), run `dd-gif-b1`. With: release 0.3.0
+(`0ac90bc6`, commit `49214c1`), run `dd-gif-a1`: "Reason: Desync detected.
+The consoles stopped agreeing on the match."*
 
-[0.2.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.2.0)
-(2026-10-31) is 0.1.0's code built with link-time optimization: 124 KiB of
-memory instead of 552 KiB.
+## Where it works
+
+- **Online matches:** tested in Eden (Quickplay pairs) and seen on a Switch:
+  the 2026-11-05 desync there was recorded and refereed
+  ([docs/DISCONNECT-DIALOG.md](docs/DISCONNECT-DIALOG.md)).
+- **Local wireless:** the session and how it ended are logged (Eden,
+  2026-11-12); the match-telemetry lines that need the online penalty table
+  don't appear there.
+- **Offline matches:** not recorded. Replays played from the Vault are.
+- **Text:** the reason is added to English pop-ups only.
+
+## Install
+
+Copy `libssbu_desync_detector.nro` to
+`sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/`. The latest
+release is
+[v0.4.0](https://git.syntaxbyexample.com/intpa/ssbu-desync-detector/releases/tag/v0.4.0)
+(2026-11-07); `main` builds 0.5.1, which is not released. Output goes to
+`sd:/ultimate/ssbu-desync-detector/`. Recordings are kept only for matches
+that did not end normally, and the log is capped at two 1 MiB files.
 
 ## More
 
-0.3.0 appends an evidence-based reason to English communication-error
-messages, keeping their original text and codes. It covers both ways the game
-builds that text: sentences with placeholders, and plain sentences such as
-"A connection error has occurred." It distinguishes recorded desyncs, local
-network status, an abnormal peer end, timeout and unknown. It does not infer a
-deliberate quit from silence or identify faulty hardware. Other languages and
-system error applets are not covered. See
-[the dated work report](docs/DISCONNECT-DIALOG.md), which also traces the
-2026-11-05 desync to TrainingRooms' waiting-room flag.
-
-0.3.0 also records five-second telemetry and snapshots around network changes
-and disconnect events: the console clock, polling intervals, frame activity
-and capture-loss counters. Keep both `events.log` and `events.previous.log`
-after a recurrence; the summary tool reads them together. This helps
-correlate an incident with router records, but does not by itself identify a
-faulty network component.
-
+- [docs/VERSIONS.md](docs/VERSIONS.md): what each version added and how it
+  was tested.
 - [docs/EDEN-PROOF.md](docs/EDEN-PROOF.md): the forced-desync test in Eden.
-  It has not run through a real desync on a Switch yet.
 - [docs/WHAT-IS-CHECKED.md](docs/WHAT-IS-CHECKED.md): what the online check
   compares, and how to test a plugin for desyncs (`cargo run --example compare`).
 - [docs/HOOKS.md](docs/HOOKS.md): hook sites, files and verdicts.
+- [docs/MATCH-TELEMETRY.md](docs/MATCH-TELEMETRY.md): the 0.5.x match lines.
+- [docs/DISCONNECT-DIALOG.md](docs/DISCONNECT-DIALOG.md): the pop-up reason
+  and the 2026-11-05 desync, traced to TrainingRooms' waiting-room flag.
 
 ## Build
 
@@ -128,6 +86,8 @@ faulty network component.
 cargo test
 cargo skyline build --release
 ```
+
+The NRO is `target/aarch64-skyline-switch/release/libssbu_desync_detector.nro`.
 
 ## License
 

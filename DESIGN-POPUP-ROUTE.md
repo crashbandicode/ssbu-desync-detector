@@ -3,6 +3,10 @@
 Working file beside `HANDOFF.md` (not a shipped doc). Branch
 `feat/disconnect-popup-route`, baseline commit `316f18d` (inherited work).
 
+2026-11-13 note: the branch was released as 0.3.0 (`49214c1`) and is no longer on Forgejo. The dynamic proof below
+was done in Eden on 2026-11-05 (`dd-popup-y03`, guest trace points; `docs/DISCONNECT-DIALOG.md`). The requirement
+trace paraphrases the request; it no longer quotes it.
+
 ## What failed on the Switch
 
 Telemetry build `02488cdc` logged `dialog=installed` at boot and a real desync
@@ -59,8 +63,8 @@ suffix and its terminator fit in 0x800 units; no pointer kept. Install line:
 
 ## Requirement trace
 
-| Operator clause | Design | Test |
+| Requirement (paraphrased) | Design | Test |
 | --- | --- | --- |
-| "an online match ended with the orange-and-white pop-up "A connection error occurred" and our disconnect reason was NOT added to it" | `plain` route at `.377a250`, the no-argument text route of the pop-up body | `plain_route_frame_finds_the_caller_buffer`, `routes_hook_aligned_moves_and_relocate_no_call` |
-| "Make the ssbu-desync-detector add its reason to that pop-up" | `append_in_frame` shared by both routes, same reason and append | `both_routes_append_the_same_way_for_one_table_of_cases`, `communication_text_event_names_the_route` |
-| "investigate why that match desynced" | Vault playback of `match-0.bin` with the detector, `referee`/`compare` against the console's `frames-0.bin` | `the_referee_names_the_console_that_left_vanilla` |
+| The "A connection error occurred" pop-up that ended an online match did not carry the detector's reason | `plain` route at `.377a250`, the no-argument text route of the pop-up body | `plain_route_frame_finds_the_caller_buffer`, `routes_hook_aligned_moves_and_relocate_no_call` |
+| Add the detector's reason to that pop-up | `append_in_frame` shared by both routes, same reason and append | `both_routes_append_the_same_way_for_one_table_of_cases`, `communication_text_event_names_the_route` |
+| Find out why that match desynced | Vault playback of `match-0.bin` with the detector, `referee`/`compare` against the console's `frames-0.bin` | `the_referee_names_the_console_that_left_vanilla` |

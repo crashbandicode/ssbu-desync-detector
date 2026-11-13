@@ -161,7 +161,9 @@ Evidence is in the popup-route work folder: `taskb2/` (scripts and logs) and
 `evidence/` (`dd-popup-pos1`, `dd-popup-pos2`, `dd-popup-ty1`,
 `dd-popup-pos5`, `dd-popup-bF1`, `dd-popup-pos6`, `dd-popup-bC1`, `taskb2/`;
 each with its sha256 in `evidence/manifest.json`).
-The diag switch is on branch `taskb/playback-continue` (`8def90b`).
+The diag switch is on branch `taskb/playback-continue` (`8def90b`), a local branch of the Yoga clone
+`/home/intpa/ssbu-desync-detector` that is not on Forgejo. The popup-route work folder is
+`/home/intpa/ssbu-cpu-pilot-work/disconnect-dialog/popup-route/` on the Yoga.
 
 **What differed.** The game's replay check (`.135fc84`–`.135fd5c`) is the
 32-bit sum of the x, y and z bit patterns of eight fighter-slot position
@@ -290,7 +292,18 @@ is asked. Until then, a TrainingRooms console with Lobby practice on can
 desync its online battles whenever it plays as station 1 and a fighter of its
 own dies.
 
+2026-11-13 note: TrainingRoomsForUltimate took the second option in `da3dc9b4` (2026-11-06, "The waiting-room
+practice flag follows the live scene on every station"), first tagged in v0.2.0-rc.3.1: its `is_training` now needs
+the live waiting-room scene as well as the flag (`src/model/scene.rs`). The card runs TrainingRooms rc.11
+(`e9e18b00`). The `dd-popup-ty1` route has not been run again on a fixed build.
+
 ## 2026-11-03
+
+2026-11-13 note: this section and the ones after it record 2026-11-03. Since then the Switch ran `02488cdc` and
+recorded the 2026-11-05 desync (above); release 0.3.0, with the telemetry and both text routes, replaced it on the
+card on 2026-11-06 ([VERSIONS.md](VERSIONS.md)); the `plain` route ran in Eden and the `args` route has not; the
+parser and its 12 tests are committed (`tools/`, `316f18d`). The work folders cited below are on the Yoga under
+`/home/intpa/ssbu-cpu-pilot-work/`.
 
 Local candidate on `feat/disconnect-reason-dialog`.
 The pre-telemetry UI candidate booted in Eden and its hook installed;

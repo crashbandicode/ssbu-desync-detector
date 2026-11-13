@@ -1,6 +1,16 @@
-# 0.5.1 every lost stock — 2026-11-12 (current)
+# Doc check — 2026-11-13
 
-- **Order:** the operator, via the primary 21:55Z: "yes build 0.5.1 and put it on the car[d]".
+- **Forgejo:** only `main` (`846814c`, which contains `release-0.5.1`'s `baf8387` and `match-telemetry-050`'s
+  `4c838f0`) and the tags v0.1.0 to v0.4.0 (`git ls-remote origin`); neither branch is there now. 0.5.0 and 0.5.1
+  have no tag or release. The GitHub mirror's `main` is the same sha.
+- **Card** at the 0.5.1 readback (2026-11-12 22:26Z, `smash-training-lobby/artifacts/card-install-detector-0.5.1/
+  verify/`): 20 plugins, among them the detector `36027bb7`, `libssbu_stall_press_carry.nro` `749ed165`,
+  `libtraining_rooms.nro` `e9e18b00` (rc.11) and `libarcropolis.nro` `ac3e05a3`.
+- The sections below are history. The version and card history is in `docs/VERSIONS.md`.
+
+# 0.5.1 every lost stock — 2026-11-12
+
+- **Order:** the operator ordered 0.5.1 and its card install (via the primary, 21:55Z).
 - **Branch:** `release-0.5.1`, off `match-telemetry-050` `4c838f0`.
 - **What changed:**
   - The frame-check hook reads each entry's `FighterInformation` counters (dead, self-destruct, stock) and logs
@@ -44,8 +54,8 @@
   and must not be run or shipped. Why: the peer's end message carries kind 2 for every abnormal end, including the
   peer timing this console out, and a peer that quits sends nothing.
 - **Kept:** `last-session.txt` (a record only) and `last_session=… penalty_flag=unknown` in the summary.
-- **Eden:** integration's Yoga pair `proof-dc8ee988-r2`, `-r4`, `-r5` (`smash-training-lobby/artifacts/phase23/
-  double-input/runs/`): the install line, `match_start`, `fault`, `session_end`, `peer_end_path` and `session_summary`
+- **Eden:** integration's Yoga pair `proof-dc8ee988-r2`, `-r4`, `-r5` (r4 and r5 copied to
+  `smash-training-lobby/artifacts/phase23/double-input/runs/`; r2 is in the Yoga's `/home/intpa/eden-runs/`): the install line, `match_start`, `fault`, `session_end`, `peer_end_path` and `session_summary`
   with the fix's counters seen live; `desync_seen=0`.
 - **Card (the primary, 2026-11-12 ~20:30Z):** `dc8ee988…` installed over `a31ad657…`, `installed_verified`; rollback
   `ultimate/ssbu-desync-detector/backups/pre-dc8ee9889d2f017d.nro`; receipts
@@ -169,7 +179,7 @@ Clips, both 1280×720, frames checked:
   (4700–12050 ms) and encoded. No second boot. Claim released 12:26:35Z. `RESULTS.md` records
   r05 FAILED. Both console.logs: no panic/abort/crash/Unmapped.
 - Desync before: `docs/media/desync-before.gif`, 6.8 s, run `dd-gif-b1` (Yoga, 41G free at Up).
-  Released 0.2.0 `29067bb6`, tag commit `550cae6`. Same route. `desync frame=908`, no
+  Released 0.2.0 `29067bb6`, tag `v0.2.0` (tag object `550cae6`, commit `1daf9a2`). Same route. `desync frame=908`, no
   `communication_text`. Pop-up is only "A connection error has occurred." 6/6 PASS. Claim
   released 12:38:23Z, profile restored and verified. console.logs clean. Down's `game.stop`
   hit its deadline and the lifecycle SIGKILLed both; RESULTS marks that as not a crash.

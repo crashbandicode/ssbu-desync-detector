@@ -52,8 +52,18 @@ unhooked and the install line says `fault=skipped`.
 `sync_end_trigger`'s `referee` caller, the instruction after the ready-word
 `bl .16ce7c0`. It is not a hook of this site. Sharing does not apply.
 
+The snapshot is on the Yoga at `/home/intpa/ssbu-desync-detector-card-20261106-v030/` (the 0.3.0 install receipt).
+
+## Seen since (2026-11-13 note)
+
+- Eden, 2026-11-12, release 0.4.0 `a31ad657`: `fault code=1 frame=3215 mask=0x3ee words=0,1,0,0,0,0,0,0,0,0` on
+  both consoles of `dbl-ga-02420ee`, `dbl-gb-02420ee` and `dbl-gb2-02420ee` (Yoga).
+- 0.5.0 `proof-dc8ee988-r2` (console a) and 0.5.1 `proof-36027bb7-r9` (console b, `frame=2015`, no input after a
+  refused runner call): `fault code=1`, then `session_end … net_result=-993 via=countdown`.
+- Code 2 has not been seen. No Switch log shows a `fault` line yet ([VERSIONS.md](VERSIONS.md)).
+
 ## Requirement trace
 
-| Operator clause | Design | Test |
+| Requirement (paraphrased) | Design | Test |
 |---|---|---|
-| `go ahead and extend the desync detector to log the information you need there including the number` | `fault` line: the stored return (`code`), the ten words, the mask, and the frame of the arming pass | `fault_line_names_the_code_and_every_word` |
+| Extend the detector to log what is needed at that point, including the number | `fault` line: the stored return (`code`), the ten words, the mask, and the frame of the arming pass | `fault_line_names_the_code_and_every_word` |

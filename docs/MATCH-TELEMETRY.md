@@ -1,7 +1,8 @@
-# Match telemetry (0.5.0)
+# Match telemetry (0.5.0, 0.5.1)
 
-2026-11-12. Static design and host tests only. No line below has been written by a match yet; the example text is
-what the host tests print (`src/matchlog.rs`).
+2026-11-12, checked 2026-11-13. The example lines are what the host tests print (`src/matchlog.rs`). The Eden runs
+that showed them in matches are named below (Quickplay pairs on the Yoga, a local wireless pair on the Surface). No
+card log written since 0.5.0 went on the card (2026-11-12) has been read.
 
 0.5.0 adds read-only `events.log` lines for online matches: the match's rules and fault-table limits at the start,
 each KO the fault table counts, which of the lockstep's peer-end paths ran, the phase-6 end with its network result,
@@ -27,8 +28,8 @@ The first number is the system tick, as on every line.
   - `melee` is the setup block's first byte (`main+0x52c51b0`) and `mode` the word at `main+0x53050f0`.
   - `watched` and `watched_n` are the entries the fault table watches (`+0xc`, `+0x10`).
   - `limits` names the block the game chose: `+0x38` for one watched entry, `+0x40` for more, then its window in
-    seconds and its two counts. Read from a running game (Eden, 2026-11-12): `+0x38` is 30 s, 3, 4 and `+0x40` is
-    30 s, 6, 7. In an Eden Quickplay 1v1 (`proof-dc8ee988-r2`) each console watched only its own fighter
+    seconds and its two counts. Read from a running game (Eden on the Ally, `dbl-lim2-ally`, 2026-11-12): `+0x38` is
+    30 s, 3, 4 and `+0x40` is 30 s, 6, 7. In an Eden Quickplay 1v1 (`proof-dc8ee988-r2`) each console watched only its own fighter
     (`watched=0x02 watched_n=1` on one, `0x01` on the other), so the `+0x38` block applied.
   - The fault table looks like the game's own penalty evaluator (the string `GamePenaltyEvaluatorManager::process` is
     referenced at `.1354a94`). In that run, the idle console (a shield tap every 2 s for about 54 s) armed code 1
@@ -36,7 +37,7 @@ The first number is the system tick, as on every line.
     pattern counted by `.1363420`.
   - `rules` is the setup block's first 64 bytes, raw. The stock, time and team fields in it are not named yet; the
     raw bytes are kept so they can be decoded later.
-- **`stock_lost`** (0.5.1): one per stock any entry loses, in every online match. The per-frame hook reads the game's
+- **`stock_lost`** (0.5.1): one per stock any live entry loses while the poll runs (below). The per-frame hook reads the game's
   own per-fighter counters, laid out as its exported accessors read them (`FighterManager__get_fighter_information`
   `.2140fc0`, `FighterInformation__dead_count` `.20c9e50`, `__suicide_count` `.20c9e90`, `__stock_count` `.20c9e80`):
   the `FighterManager` is `*[main+0x52b94f8]`, entry `e` is `[[manager] + 0x20 + 8e]`, and its information data is
@@ -46,15 +47,17 @@ The first number is the system tick, as on every line.
   - `stock` is the stocks left (`+0xd8`).
   - `self_destruct=yes` when the self-destruct total rose with the dead total.
   - The first poll of a match, and any count going down (a new battle), only set the baseline.
-  - **When it reads:** only from match setup (`match_limits`) to the match's first end (`sync_end` or phase 6) or the
-    session stop, and never while the manager is on the results (`is_result_mode`, `[[manager]+0xe9]`).
+  - **When it reads:** on lockstep frames only (the frame-check hook), from match setup (`match_limits`, armed table
+    or not) to the match's first end (`sync_end` or phase 6) or the session stop, and never while the manager is on
+    the results (`is_result_mode`, `[[manager]+0xe9]`).
   - **What it reads:** only entries below the game's live count (`entry_count`, `[[manager]+0xa0]`, at most 8), one
     straight chain per entry; a null or implausible pointer (below `0x10000` or not 8-aligned) ends that chain, as
     the game's own `total_fighter_num` skips null slots.
   - **Seen in Eden** (integration's Yoga pair): two falls after a hit (`proof-36027bb7-r8`) gave
     `self_destruct=no dead=1,0,0 suicides=0`; a run-off at GO with no hit (`proof-36027bb7-r10`) gave
     `self_destruct=yes dead=1,0,0 suicides=1` and `self_destructs=1` in the summary. Each time both consoles logged
-    the same line at the same frame.
+    the same line at the same frame. Not yet seen in a local wireless match: `a-ldn-sd051-0c628724` (Surface,
+    2026-11-12) failed before its match.
 - **`ko`**: one per call of the KO method the fault table counts (`.1363420`), while the table is armed. The game
   does not call it for every lost stock: in Eden a run-off, a CPU's lost stock and two falls after a hit left no `ko`
   line (`proof-dc8ee988-r4`, `-r6`, `-r7`, `proof-36027bb7-r8`), while a KO in a fight did (`-r5`), and so did a
@@ -126,5 +129,9 @@ each other.
 ## Not covered
 
 - Offline matches: the table is not armed and there is no lockstep session, so none of these lines.
+- Local wireless matches: the table was not armed in the one run (`a-ldn-fix020t-0c628724`, Surface, 2026-11-12,
+  0.5.0 diag `a42d6c51`). Both consoles logged `session slot=2 kind=online`, `sync_end … desync_seen=0`,
+  `peer_end_path path=A`, `session_end` and `session_summary`, but no `match_start` or `ko`, and `kos=0` although the
+  host walked off 4 times. 0.5.1's `stock_lost` has not run there yet.
 - The meaning of the stock, time and team bytes in `rules`, of KO kind 8, and of the param pair 30.0 / 50.0 at
   `+0x48`/`+0x4c`.

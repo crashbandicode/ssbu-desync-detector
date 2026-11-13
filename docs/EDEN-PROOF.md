@@ -66,3 +66,7 @@ the probed one).
 - A Switch, and a real "No contest" on Nintendo's servers (Eden LAN ends a
   desynced match with "A connection error has occurred").
 - Matches longer than about 30 seconds, doubles, and Arena.
+
+2026-11-13 note: since then a real desync on a Switch (2026-11-05, frame 4348, the unreleased build `02488cdc`)
+was recorded and refereed the same way; the game showed its connection-error pop-up
+([DISCONNECT-DIALOG.md](DISCONNECT-DIALOG.md)). Doubles and Arena are still untested.

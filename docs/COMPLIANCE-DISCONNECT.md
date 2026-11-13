@@ -4,6 +4,10 @@ Developmentcandidate02488cdc installed16:13:34Z under explicit operator order.
 Readbacks/rollback independently verified; all device operations closed. Console run pending.
 Playbook03e23218af1eaa007793bbc21718bd594f4999c7; no new code/build/Eden work this turn.
 
+2026-11-13 note: rows below were true on 2026-11-03. Since then `docs/media/referee.gif` was rescaled to
+1280×720, 9.6 s (`ec7d0fe`, 2026-11-06); `tools/summarize_disconnect.py` and its 12 tests are committed (`316f18d`,
+2026-11-05); and release 0.3.0 replaced `02488cdc` on the card on 2026-11-06 ([VERSIONS.md](VERSIONS.md)).
+
 
 | Requirement | Tag | Result | Evidence |
 | --- | --- | --- | --- |

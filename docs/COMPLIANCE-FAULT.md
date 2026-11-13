@@ -3,6 +3,13 @@
 2026-11-07. Playbook `3f96569`.
 `compliance.py --base 49214c13267cc1f813ca86d606c6bd9f2232de76 --trace docs/FAULT-CODE.md --nro target/aarch64-skyline-switch/release/libssbu_desync_detector.nro`.
 
+2026-11-13 note: after this report, `ca0c149` was tagged `v0.4.0` and released on Forgejo on 2026-11-07 (NRO
+`a31ad657…`, a 61,440-byte file with 143,360 bytes resident, per its `manifest.json`), and installed on the card at
+2026-11-07 18:43Z (receipt on the Yoga, `/home/intpa/ssbu-desync-detector-release/v0.4.0-install/`). The
+`82539499…` build below is the uncommitted tree's, not the release. Eden ran 0.4.0 on 2026-11-12
+([FAULT-CODE.md](FAULT-CODE.md)). The "no operator quotes" row was wrong: `FAULT-CODE.md` and `CANCELED-NOTICE.md`
+quoted the request in their trace tables until 2026-11-13, when they were paraphrased.
+
 Machine rows passed except `working tree clean` (fail: the fault log, the notice matcher, and the GIF leftovers are uncommitted; no commit was ordered). Release NRO sha256 prefix `82539499150a1e89`, 143360 bytes, no diag markers. The requirement-trace row passed: one clause, `fault_line_names_the_code_and_every_word` exists.
 
 | Requirement | Result | Evidence |

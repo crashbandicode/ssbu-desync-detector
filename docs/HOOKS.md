@@ -1,5 +1,7 @@
 # Hook sites and files
 
+Checked against `src/` at `846814c` (0.5.1) on 2026-11-13.
+
 ## Hook sites (13.0.5 `.text`)
 
 Simulation hooks read registers and memory the game is already reading.
@@ -9,7 +11,7 @@ nothing is installed on another game version.
 
 | Offset | What it reads |
 |---|---|
-| `0x16d6cdc` | this frame's check value and frame number |
+| `0x16d6cdc` | this frame's check value and frame number; 0.5.1: each live fighter's dead, self-destruct and stock counts, from match setup to the match's first end |
 | `0x16cf304` | a mismatch: both values, the station and the frame |
 | `0x16ce7c0` | the lockstep session end and its caller |
 | `0x16cc2c4` | the other console's end message |
@@ -22,7 +24,7 @@ nothing is installed on another game version.
 | `0x16cc4c0`, `0x16ccae8` | 0.5.0: the lockstep's two peer-end paths into phase 6 |
 | `0x16cced0`, `0x16d5cd0` | 0.5.0: phase 6 (reason, fault code, caller) and the session stop (summary) |
 
-The 0.5.0 sites are described in [MATCH-TELEMETRY.md](MATCH-TELEMETRY.md).
+The 0.5.0 sites and 0.5.1's counter reads are described in [MATCH-TELEMETRY.md](MATCH-TELEMETRY.md).
 
 The game sets a label's text two ways, and each has one route in
 `src/dialog.rs` (`Route`): with arguments through `.37a2660` and the
@@ -78,8 +80,9 @@ byte 248, matching Skyline 0.6.0's `InlineCtx.sp`. Static evidence is in
 `skyline-patch-width.log` in the work folder. The earlier hook at
 `37a272c` was rejected: an unaligned far patch replaces five instructions,
 including the following BL. Its build was never installed.
-Runtime coverage and text fit still require acceptance. See
-`DISCONNECT-DIALOG.md`.
+The `plain` route ran in Eden (`dd-popup-y03`, `dd-popup-y05`, 2026-11-05,
+and the 0.4.0/0.5.0 runs in [VERSIONS.md](VERSIONS.md)); the `args` route has
+not run in Eden or on a Switch. See `DISCONNECT-DIALOG.md`.
 
 ## Files (`sd:/ultimate/ssbu-desync-detector/`)
 
@@ -88,7 +91,7 @@ new session empties its slot first.
 
 | File | Contents |
 |---|---|
-| `events.log` | Install line; per session `session`, `desync` (frame, this console's value, the other console's value, its station), `sync_end` (what ended the session), `peer_end`, `link`, `recording` (or `not_kept reason=normal_end`), `playback_mismatch`, `fault` (the number that armed the countdown, the frame, the mask, and the ten table words); `communication_text` records preparation time and reason, not proof of a rendered frame; `notice_text` records a Canceled notice or the reconnect warning, the function that asked for it (`caller`), and whether a verdict was withheld. 0.5.0 adds `match_start`, `ko`, `peer_end_path`, `session_end` and `session_summary` ([MATCH-TELEMETRY.md](MATCH-TELEMETRY.md)). At 1 MiB it becomes `events.previous.log`. |
+| `events.log` | Install line; per session `session`, `desync` (frame, this console's value, the other console's value, its station), `sync_end` (what ended the session), `peer_end`, `link`, `recording` (or `not_kept reason=normal_end`), `playback_mismatch`, `fault` (the number that armed the countdown, the frame, the mask, and the ten table words); `communication_text` records preparation time and reason, not proof of a rendered frame; `notice_text` records a Canceled notice or the reconnect warning, the function that asked for it (`caller`), and whether a verdict was withheld. 0.3.0's `telemetry` rows (every 5 s) and `frame_gap`. 0.5.0 adds `match_start`, `ko`, `peer_end_path`, `session_end`, `session_summary` and the boot's `last_session_loaded`; 0.5.1 adds `stock_lost` ([MATCH-TELEMETRY.md](MATCH-TELEMETRY.md)). At 1 MiB it becomes `events.previous.log`. |
 | `last-session.txt` | 0.5.0: one line, `last_session=<token>`: `in_progress` while an online session runs, then its verdict (see [MATCH-TELEMETRY.md](MATCH-TELEMETRY.md)). A record only. |
 | `frames-N.bin` | 20-byte records. Online: frame number and this console's check value. Playback: playback frame, the computed check value, computed and recorded position checksums. |
 | `match-N.bin` | Only for a match that did not end normally: the game's recording as a replay file, saved one second after the session ends and replaced by the finalised entry if the game finalises it. |
