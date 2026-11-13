@@ -51,9 +51,14 @@ The first number is the system tick, as on every line.
   - **What it reads:** only entries below the game's live count (`entry_count`, `[[manager]+0xa0]`, at most 8), one
     straight chain per entry; a null or implausible pointer (below `0x10000` or not 8-aligned) ends that chain, as
     the game's own `total_fighter_num` skips null slots.
+  - **Seen in Eden** (integration's Yoga pair): two falls after a hit (`proof-36027bb7-r8`) gave
+    `self_destruct=no dead=1,0,0 suicides=0`; a run-off at GO with no hit (`proof-36027bb7-r10`) gave
+    `self_destruct=yes dead=1,0,0 suicides=1` and `self_destructs=1` in the summary. Each time both consoles logged
+    the same line at the same frame.
 - **`ko`**: one per call of the KO method the fault table counts (`.1363420`), while the table is armed. The game
-  does not call it for every lost stock: in Eden a run-off and a CPU's lost stock left no `ko` line
-  (`proof-dc8ee988-r4`, `-r6`, `-r7`), while a KO in a fight did (`-r5`). It is the fault table's own evidence;
+  does not call it for every lost stock: in Eden a run-off, a CPU's lost stock and two falls after a hit left no `ko`
+  line (`proof-dc8ee988-r4`, `-r6`, `-r7`, `proof-36027bb7-r8`), while a KO in a fight did (`-r5`), and so did a
+  run-off at GO (`proof-36027bb7-r10`, `kind=1`). It is the fault table's own evidence;
   `stock_lost` is the count of lost stocks. `entry` and
   `kind` are its arguments; kind 8 is not counted and its meaning is unknown. `stamps` is the stamp list's length and
   `fault_word2` the table's word 2, before and after the call. `frame` is the lockstep session's frame.

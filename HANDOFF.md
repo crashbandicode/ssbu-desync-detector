@@ -17,7 +17,16 @@
 - **Card (the primary, ~22:27Z):** `dc8ee988` → `36027bb7`, `verified_in_place`; rollback
   `ultimate/ssbu-desync-detector/backups/pre-36027bb7690114a9.nro`.
 - **Pushed:** branch `release-0.5.1` at `baf8387`, no tag.
-- **Next:** integration's r9 (b runs off at the match start: a true self-destruct, `self_destruct=yes`).
+- **Eden r9** (`proof-36027bb7-r9`): `m-sd0` failed before the run-off (the harness asked for a stick lease above
+  10000 ms, which Eden refuses), so b had no input and the game's inactivity check ended its session (`fault code=1
+  frame=2015`, `session_end … net_result=-993 via=countdown`). No crash on either console.
+- **Eden r10** (`proof-36027bb7-r10`, the primary, 2026-11-12 23:18–23:28Z; the run-off held with re-issued 2000 ms
+  leases), all 13 rows PASS: b ran off its own edge at GO with no hit. Both consoles logged
+  `stock_lost frame=434 entry=0 self_destruct=yes dead=1,0,0 suicides=1 stock=0`; both summaries
+  `kos=1,… self_destructs=1,…`; `sync_end trigger=normal kind=1 frame=540 … desync_seen=0` on both. The 0.5.0 `ko`
+  line fired for this fall too (`ko frame=434 entry=0 kind=1` on both).
+- **The card is final** (the primary, 2026-11-13 00:23Z): detector 0.5.1 `36027bb7`, the fix 0.2.0 `749ed165`,
+  TrainingRooms rc.11.
 
 # 0.5.0 match telemetry — 2026-11-12
 
