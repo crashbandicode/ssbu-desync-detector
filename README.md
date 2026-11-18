@@ -60,6 +60,8 @@ The consoles stopped agreeing on the match."*
 
 ## Install
 
+Tested on: Super Smash Bros. Ultimate 13.0.5 · Switch firmware 23.5.0 · Atmosphère 1.12.2
+
 Copy `libssbu_desync_detector.nro` to
 `sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/`. The latest
 release is
